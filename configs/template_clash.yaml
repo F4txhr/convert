@@ -1,0 +1,84 @@
+port: 7890
+socks-port: 7891
+allow-lan: true
+mode: rule
+log-level: info
+external-controller: :9090
+
+# This is where the generated proxies will be injected.
+proxies: []
+
+proxy-groups:
+  - name: Internet
+    type: select
+    proxies: [Best Latency 🚀, Latency ID, Latency SG, direct 🚸]
+  - name: region ID
+    type: select
+    proxies: [Latency ID, direct 🚸]
+  - name: sosmed 📱
+    type: select
+    proxies: [region ID, Best Latency 🚀, Internet, direct 🚸]
+  - name: WhatsApp 🌏
+    type: select
+    proxies: [region ID, Best Latency 🚀, Internet, direct 🚸]
+  - name: GAME 🎮
+    type: select
+    proxies: [region ID, Best Latency 🚀, Internet, direct 🚸]
+  - name: Ads
+    type: select
+    proxies: [REJECT, Internet]
+  - name: Porn 🔞
+    type: select
+    proxies: [REJECT, Internet]
+  - name: Best Latency 🚀
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies: [] # This will be populated dynamically
+  - name: Latency ID
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies: [] # This will be populated dynamically
+  - name: Latency SG
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies: [] # This will be populated dynamically
+  - name: direct 🚸
+    type: select
+    proxies: [DIRECT]
+
+# Define rule providers (can be expanded with more rules from the Sing-box config)
+rule-providers:
+  geosite-malicious:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-malicious.srs"
+    path: ./ruleset/geosite-malicious.yaml
+    interval: 86400
+  geosite-rule-gaming:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-gaming.srs"
+    path: ./ruleset/geosite-rule-gaming.yaml
+    interval: 86400
+  geosite-rule-indo:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-indo.srs"
+    path: ./ruleset/geosite-rule-indo.yaml
+    interval: 86400
+  geoip-id:
+    type: http
+    behavior: ipcidr
+    url: "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geoip/geoip-id.srs"
+    path: ./ruleset/geoip-id.yaml
+    interval: 86400
+
+rules:
+  - RULE-SET,geosite-malicious,REJECT
+  - RULE-SET,geosite-rule-gaming,GAME 🎮
+  - RULE-SET,geosite-rule-indo,region ID
+  - GEOIP,ID,region ID
+  - MATCH,Internet

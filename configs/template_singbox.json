@@ -1,0 +1,173 @@
+{
+  "log": {
+    "level": "debug",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      { "tag": "Internet-dns", "address": "local", "detour": "Internet" },
+      { "tag": "Best Latency-dns", "address": "local", "detour": "Best Latency 🚀" },
+      { "tag": "Best Latency-ID-dns", "address": "local", "detour": "Latency ID" },
+      { "tag": "Best Latency-SG-dns", "address": "local", "detour": "Latency SG" },
+      { "tag": "region ID-dns", "address": "local", "detour": "region ID" },
+      { "tag": "sosmed-dns", "address": "local", "detour": "sosmed 📱" },
+      { "tag": "whatsapp-dns", "address": "local", "detour": "WhatsApp 🌏" },
+      { "tag": "GAME-dns", "address": "208.67.222.222", "detour": "GAME 🎮" },
+      { "tag": "direct-dns", "address": "1.1.1.1" },
+      { "tag": "block-dns", "address": "rcode://success" }
+    ],
+    "rules": [
+      { "rule_set": ["geosite-malicious", "geoip-malicious"], "server": "block-dns", "rewrite_ttl": 20 },
+      { "rule_set": ["geosite-bank-id", "geosite-rule-indo", "geoip-id"], "server": "region ID-dns" },
+      { "rule_set": "geosite-whatsapp", "server": "whatsapp-dns" },
+      { "rule_set": ["geosite-rule-sosmed", "geosite-tiktok", "geosite-instagram"], "server": "sosmed-dns" },
+      { "rule_set": ["geosite-rule-speedtest", "geosite-rule-streaming"], "server": "Internet-dns" },
+      { "outbound": "Internet", "server": "Internet-dns" },
+      { "outbound": "sosmed 📱", "server": "sosmed-dns" },
+      { "outbound": "WhatsApp 🌏", "server": "whatsapp-dns" },
+      { "outbound": "Best Latency 🚀", "server": "Best Latency-dns" },
+      { "outbound": "Latency ID", "server": "Best Latency-ID-dns" },
+      { "outbound": "Latency SG", "server": "Best Latency-SG-dns" },
+      { "outbound": "region ID", "server": "region ID-dns" },
+      { "outbound": "GAME 🎮", "server": "GAME-dns" },
+      { "outbound": "direct 🚸", "server": "direct-dns" }
+    ],
+    "final": "Internet-dns",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": "172.19.0.1/30",
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "gvisor",
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "Internet",
+      "outbounds": ["Best Latency 🚀", "Latency ID", "Latency SG", "direct 🚸"],
+      "default": "Best Latency 🚀"
+    },
+    {
+      "type": "selector",
+      "tag": "region ID",
+      "outbounds": ["Latency ID", "direct 🚸"],
+      "default": "Latency ID"
+    },
+    {
+      "type": "selector",
+      "tag": "sosmed 📱",
+      "outbounds": ["region ID", "Best Latency 🚀", "Latency ID", "Latency SG", "Internet", "direct 🚸"],
+      "default": "Internet"
+    },
+    {
+      "type": "selector",
+      "tag": "WhatsApp 🌏",
+      "outbounds": ["region ID", "Best Latency 🚀", "Latency ID", "Latency SG", "Internet", "direct 🚸"],
+      "default": "Latency ID"
+    },
+    {
+      "type": "selector",
+      "tag": "GAME 🎮",
+      "outbounds": ["region ID", "Best Latency 🚀", "Latency ID", "Latency SG", "Internet", "direct 🚸"]
+    },
+    {
+      "type": "urltest",
+      "tag": "Best Latency 🚀",
+      "outbounds": [],
+      "url": "https://detectportal.firefox.com/success.txt",
+      "interval": "20s"
+    },
+    {
+      "type": "urltest",
+      "tag": "Latency ID",
+      "outbounds": [],
+      "url": "https://www.youtube.com/generate_204",
+      "interval": "20s"
+    },
+    {
+      "type": "urltest",
+      "tag": "Latency SG",
+      "outbounds": [],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "20s"
+    },
+    {
+      "type": "selector",
+      "tag": "Ads",
+      "outbounds": ["🚫", "Internet"],
+      "default": "🚫"
+    },
+    {
+      "type": "selector",
+      "tag": "Porn 🔞",
+      "outbounds": ["🚫", "Internet"],
+      "default": "🚫"
+    },
+    {
+      "type": "direct",
+      "tag": "direct 🚸"
+    },
+    {
+      "type": "block",
+      "tag": "🚫"
+    }
+  ],
+  "route": {
+    "rules": [
+      { "protocol": "dns", "action": "hijack-dns" },
+      { "rule_set": ["geosite-malicious", "geoip-malicious"], "outbound": "🚫" },
+      { "rule_set": ["geosite-oisd-full", "geosite-adblock", "geosite-amazon-ads", "geosite-google-ads", "geosite-samsung@ads", "geosite-adblockplus", "geosite-spotify-ads", "geosite-xiaomi-ads"], "outbound": "Ads" },
+      { "rule_set": ["geosite-rule-speedtest", "geosite-rule-streaming"], "outbound": "Internet" },
+      { "rule_set": ["geosite-bank-id", "geosite-rule-indo", "geoip-id"], "outbound": "region ID" },
+      { "rule_set": "geosite-whatsapp", "outbound": "WhatsApp 🌏" },
+      { "rule_set": ["geosite-rule-sosmed", "geosite-tiktok", "geosite-instagram"], "outbound": "sosmed 📱" },
+      { "rule_set": "geosite-rule-gaming", "outbound": "GAME 🎮" },
+      { "rule_set": ["geosite-category-porn", "geosite-pornhub", "geosite-oisd-nsfw"], "outbound": "Porn 🔞" },
+      { "geoip": ["private"], "outbound": "direct 🚸" }
+    ],
+    "rule_set": [
+      { "type": "remote", "tag": "geosite-bank-id", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-bank-id.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-rule-indo", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-indo.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geoip-id", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geoip/geoip-id.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-rule-sosmed", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-sosmed.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-whatsapp", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-whatsapp.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-tiktok", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-tiktok.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-instagram", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-instagram.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-rule-speedtest", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-speedtest.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-rule-gaming", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-gaming.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-rule-streaming", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-streaming.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-google", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-google.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-malicious", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-rule-malicious.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geoip-malicious", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geoip/geoip-malicious.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-oisd-full", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-oisd-full.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-adblock", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-adblock.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-amazon-ads", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-amazon-ads.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-google-ads", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-google-ads.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-samsung@ads", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-samsung%40ads.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-adblockplus", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-adblockplus.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-spotify-ads", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-spotify-ads.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-xiaomi-ads", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-xiaomi-ads.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-category-porn", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-category-porn.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-pornhub", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-pornhub.srs", "download_detour": "Internet" },
+      { "type": "remote", "tag": "geosite-oisd-nsfw", "url": "https://raw.githubusercontent.com/malikshi/sing-box-geo/rule-set-geosite/geosite-oisd-nsfw.srs", "download_detour": "Internet" }
+    ],
+    "final": "Internet",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": { "enabled": true, "path": "cache.db" },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "dashboard",
+      "external_ui_download_url": "https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+      "external_ui_download_detour": "Internet"
+    }
+  }
+}
