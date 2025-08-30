@@ -16,45 +16,78 @@ func (c ClashExporter) Name() string { return "clash" }
 
 // createClashProxy converts a core.Profile into a detailed Clash proxy map.
 func createClashProxy(p core.Profile) map[string]interface{} {
-	// Clash proxy type mapping
-	clashType := p.Proto
-	if p.Proto == "vless" {
-		// VLESS is not a native type in Clash OSS, often configured as vmess
-		clashType = "vmess"
-	}
-
+	// Base proxy object
 	proxy := map[string]interface{}{
 		"name":   p.ID,
-		"type":   clashType,
+		"type":   p.Proto,
 		"server": p.Server,
 		"port":   p.Port,
 	}
 
-	// Add protocol-specific auth details
+	// Protocol-specific fields and translations
 	switch p.Proto {
-	case "vmess", "vless":
+	case "vmess":
+		proxy["uuid"] = p.Auth["uuid"]
+		proxy["alterId"] = 0
+		proxy["cipher"] = "auto"
+	case "vless":
+		// Translate VLESS to Clash's vmess format
+		proxy["type"] = "vmess"
 		proxy["uuid"] = p.Auth["uuid"]
 		proxy["alterId"] = 0
 		proxy["cipher"] = "auto"
 	case "trojan":
 		proxy["password"] = p.Auth["password"]
+		proxy["smux"] = true // Smart Default
 	case "ss":
 		proxy["cipher"] = p.Auth["method"]
 		proxy["password"] = p.Auth["password"]
+		if pluginName, ok := p.Extra["plugin"]; ok {
+			proxy["plugin"] = pluginName
+
+			// Build the plugin_opts string from Extra map, per user request
+			var opts []string
+			if mux, ok := p.Extra["mux"]; ok && mux != "0" {
+				opts = append(opts, "mux")
+			}
+			if path, ok := p.Extra["path"]; ok {
+				opts = append(opts, "path="+path)
+			}
+			if host, ok := p.Extra["host"]; ok {
+				opts = append(opts, "host="+host)
+			}
+			if _, ok := p.Extra["tls"]; ok {
+				opts = append(opts, "tls")
+			}
+			proxy["plugin-opts"] = strings.Join(opts, ";")
+		}
+		// Return early for SS as its structure is different
+		return proxy
+	case "wg":
+		proxy["ip"] = "172.19.0.2" // Smart Default
+		proxy["private-key"] = p.Auth["private_key"]
+		proxy["public-key"] = p.Extra["publicKey"]
+		// 'reserved' can be added if present in Extra
+		return proxy // WG has a simpler structure, return early
 	}
 
+	// Common settings for VLESS, VMess, Trojan
 	// TLS Settings
 	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
 		proxy["tls"] = true
-		if sni, ok := p.Extra["sni"]; ok {
+		if sni, ok := p.Extra["sni"]; ok && sni != "" {
 			proxy["servername"] = sni
+		} else if host, ok := p.Extra["host"]; ok && host != "" {
+			proxy["servername"] = host // Fallback to host for SNI
 		}
-		if insecure, ok := p.Extra["skip-cert-verify"]; ok && insecure == "true" {
+
+		// Per user example, insecure is often a requirement
+		if insecure, ok := p.Extra["insecure"]; ok && insecure == "true" {
 			proxy["skip-cert-verify"] = true
 		}
 	}
 
-	// Transport Settings (e.g., WebSocket, gRPC)
+	// Transport Settings
 	if transportType, ok := p.Extra["type"]; ok {
 		proxy["network"] = transportType
 		switch transportType {
@@ -74,12 +107,6 @@ func createClashProxy(p core.Profile) map[string]interface{} {
 			}
 			proxy["grpc-opts"] = grpcOpts
 		}
-	}
-
-	// Multiplex Settings (Smart Default for Trojan)
-	if p.Proto == "trojan" {
-		// smux is a sub-field in clash, often enabled by default with ws/grpc
-		// but we can make it explicit if needed. For now, we assume default behavior.
 	}
 
 	return proxy

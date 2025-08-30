@@ -15,61 +15,95 @@ func (s SingboxExporter) Name() string { return "singbox" }
 
 // createSingboxProxy converts a core.Profile into a detailed Sing-box outbound map.
 func createSingboxProxy(p core.Profile) map[string]interface{} {
+	// Base proxy object
 	proxy := map[string]interface{}{
-		"type":        p.Proto,
-		"tag":         p.ID,
-		"server":      p.Server,
-		"server_port": p.Port,
+		"type":            p.Proto,
+		"tag":             p.ID,
+		"server":          p.Server,
+		"server_port":     p.Port,
+		"domain_strategy": "ipv4_only", // Smart Default
 	}
 
-	// Add protocol-specific auth details
+	// Protocol-specific fields
 	switch p.Proto {
-	case "vless", "vmess":
+	case "vmess":
 		proxy["uuid"] = p.Auth["uuid"]
-		if p.Proto == "vmess" {
-			proxy["security"] = "auto"
-			proxy["alter_id"] = 0
-		}
+		proxy["security"] = "zero"
+		proxy["alter_id"] = 0
+		proxy["packet_encoding"] = "xudp"
+	case "vless":
+		proxy["uuid"] = p.Auth["uuid"]
+		proxy["packet_encoding"] = "xudp"
 	case "trojan":
 		proxy["password"] = p.Auth["password"]
 	case "ss":
+		// Per user request, generate the non-standard Clash-like format for SS
 		proxy["method"] = p.Auth["method"]
 		proxy["password"] = p.Auth["password"]
+		if pluginName, ok := p.Extra["plugin"]; ok {
+			proxy["plugin"] = pluginName
+
+			// Build the plugin_opts string from Extra map
+			var opts []string
+			if mux, ok := p.Extra["mux"]; ok { // This is a hypothetical field for demo
+				opts = append(opts, "mux="+mux)
+			}
+			if path, ok := p.Extra["path"]; ok {
+				opts = append(opts, "path="+path)
+			}
+			if host, ok := p.Extra["host"]; ok {
+				opts = append(opts, "host="+host)
+			}
+			if _, ok := p.Extra["tls"]; ok {
+				opts = append(opts, "tls=1")
+			}
+			proxy["plugin_opts"] = strings.Join(opts, ";")
+		}
+		// Return early for SS as its structure is completely different
+		return proxy
+	case "wg":
+		proxy["local_address"] = []string{"172.19.0.2/32"} // Smart Default
+		proxy["private_key"] = p.Auth["private_key"]
+		proxy["peer_public_key"] = p.Extra["publicKey"]
+		// 'reserved' can be added if present in Extra
+		return proxy // WG has a simpler structure, return early
 	}
 
+	// Common settings for VLESS, VMess, Trojan
 	// TLS Settings
-	if security, ok := p.Extra["security"]; ok && security == "tls" {
-		tlsSettings := map[string]interface{}{"enabled": true}
-		if sni, ok := p.Extra["sni"]; ok {
-			tlsSettings["server_name"] = sni
+	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
+		tlsSettings := map[string]interface{}{
+			"enabled":  true,
+			"insecure": true, // Per user example
 		}
-		// Note: Sing-box doesn't typically have an 'insecure' option like Clash.
-		// It might be handled by 'utls' or other settings if needed.
+		if sni, ok := p.Extra["sni"]; ok && sni != "" {
+			tlsSettings["server_name"] = sni
+		} else if host, ok := p.Extra["host"]; ok && host != "" {
+			tlsSettings["server_name"] = host // Fallback to host for SNI
+		}
 		proxy["tls"] = tlsSettings
 	}
 
-	// Transport Settings (e.g., WebSocket, gRPC)
-	if transportType, ok := p.Extra["type"]; ok && (transportType == "ws" || transportType == "grpc") {
-		transportSettings := map[string]interface{}{"type": transportType}
-		if path, ok := p.Extra["path"]; ok {
-			transportSettings["path"] = path
-		}
+	// Transport Settings (e.g., WebSocket)
+	if transportType, ok := p.Extra["type"]; ok && transportType == "ws" {
+		headers := make(map[string]string)
 		if host, ok := p.Extra["host"]; ok {
-			transportSettings["headers"] = map[string]string{"Host": host}
+			headers["Host"] = host
 		}
-		if serviceName, ok := p.Extra["serviceName"]; ok {
-			transportSettings["service_name"] = serviceName
+
+		proxy["transport"] = map[string]interface{}{
+			"type":                   "ws",
+			"path":                   p.Extra["path"],
+			"headers":                headers,
+			"early_data_header_name": "Sec-WebSocket-Protocol", // Smart Default
 		}
-		proxy["transport"] = transportSettings
 	}
 
-	// Multiplex Settings (Smart Default for Trojan)
-	if p.Proto == "trojan" {
-		proxy["multiplex"] = map[string]interface{}{
-			"enabled":     true,
-			"protocol":    "smux",
-			"max_streams": 32,
-		}
+	// Multiplex Settings
+	proxy["multiplex"] = map[string]interface{}{
+		"enabled":     true,
+		"protocol":    "smux",
+		"max_streams": 32,
 	}
 
 	return proxy
