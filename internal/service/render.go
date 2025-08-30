@@ -1,60 +1,65 @@
 package service
 
 import (
-    "fmt"
-    "strings"
-    "vpn-conv/internal/core"
-    "vpn-conv/internal/export"
-    "vpn-conv/internal/proto"
+	"fmt"
+	"net/url"
+	"vpn-conv/internal/core"
+	"vpn-conv/internal/export"
+	"vpn-conv/internal/proto"
 )
 
 type Exporter interface {
-    Name() string
-    Render(core.Profile) (string, error)
+	Name() string
+	Render(core.Profile) (string, error)
 }
 
 type Renderer struct {
-    exporters map[string]Exporter
+	exporters map[string]Exporter
+	parsers   map[string]Parser
 }
 
 func NewRenderer() *Renderer {
-    return &Renderer{
-        exporters: map[string]Exporter{
-            "clash":   export.ClashExporter{},
-            "singbox": export.SingboxExporter{},
-            "v2ray":   export.V2rayExporter{},
-            "raw":     export.RawExporter{},
-        },
-    }
+	return &Renderer{
+		exporters: map[string]Exporter{
+			"clash":   export.ClashExporter{},
+			"singbox": export.SingboxExporter{},
+			"v2ray":   export.V2rayExporter{},
+			"raw":     export.RawExporter{},
+		},
+		parsers: map[string]Parser{
+			"vmess":  proto.VmessParser{},
+			"vless":  proto.VlessParser{},
+			"trojan": proto.TrojanParser{},
+			"ss":     proto.SSParser{},
+			"wg":     proto.WGParser{},
+		},
+	}
 }
 
 func (r *Renderer) Convert(uri, format string) (string, error) {
-    var profile core.Profile
-    var err error
+	u, err := url.Parse(uri)
+	if err != nil {
+		return "", fmt.Errorf("invalid uri: %w", err)
+	}
+	scheme := u.Scheme
+	if scheme == "" {
+		return "", fmt.Errorf("uri missing scheme")
+	}
 
-    switch {
-    case strings.HasPrefix(uri, "vmess://"):
-        profile, err = proto.ParseVMess(uri)
-    case strings.HasPrefix(uri, "vless://"):
-        profile, err = proto.ParseVLESS(uri)
-    case strings.HasPrefix(uri, "trojan://"):
-        profile, err = proto.ParseTrojan(uri)
-    case strings.HasPrefix(uri, "ss://"):
-        profile, err = proto.ParseSS(uri)
-    case strings.HasPrefix(uri, "wg://"):
-        profile, err = proto.ParseWG(uri)
-    default:
-        return "", fmt.Errorf("unsupported uri: %s", uri)
-    }
+	parser, ok := r.parsers[scheme]
+	if !ok {
+		return "", fmt.Errorf("unsupported uri scheme: '%s'", scheme)
+	}
 
-    if err != nil {
-        return "", err
-    }
+	profile, err := parser.Parse(uri)
+	if err != nil {
+		return "", err
+	}
 
-    exp, ok := r.exporters[format]
-    if !ok {
-        return "", fmt.Errorf("unsupported format: %s", format)
-    }
+	exp, ok := r.exporters[format]
+	if !ok {
+		return "", fmt.Errorf("unsupported format: %s", format)
+	}
 
-    return exp.Render(profile)
+	return exp.Render(profile)
 }
