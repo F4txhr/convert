@@ -1,0 +1,5 @@
+server:
+  addr: ":8080"
+
+bot:
+  token: "ISI_TOKEN_BOT_TELEGRAM"
