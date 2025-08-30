@@ -45,13 +45,13 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	rawURL := strings.TrimPrefix(uri, "ss://")
 
-	// If no "@", assume base64 encoded string.
+	// If no "@", assume the entire URI part is base64 encoded.
 	if !strings.Contains(rawURL, "@") {
 		decoded, err := base64.StdEncoding.DecodeString(rawURL)
 		if err != nil {
 			return core.Profile{}, err
 		}
-		// Re-attach fragment to the parsed content
+		// Re-attach fragment to the parsed content and parse recursively.
 		recursiveURI := "ss://" + string(decoded)
 		if fragment != "" {
 			recursiveURI += "#" + fragment
@@ -71,9 +71,22 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	port, _ := strconv.Atoi(u.Port())
 
-	parts := strings.SplitN(u.User.Username(), ":", 2)
-	method := ""
-	password := ""
+	// Handle the user info part, which could be plain or base64.
+	var method, password string
+	userInfo := u.User.Username()
+
+	// Try to decode user info as Base64.
+	decodedUserInfo, err := base64.StdEncoding.DecodeString(userInfo)
+	var credsToParse string
+	if err == nil {
+		// Decoding successful, use the decoded string.
+		credsToParse = string(decodedUserInfo)
+	} else {
+		// Decoding failed, assume plain text.
+		credsToParse = userInfo
+	}
+
+	parts := strings.SplitN(credsToParse, ":", 2)
 	if len(parts) > 0 {
 		method = parts[0]
 	}
@@ -81,6 +94,7 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		password = parts[1]
 	}
 
+	// Parse plugin options from query parameters.
 	extra := make(map[string]string)
 	if pluginStr := u.Query().Get("plugin"); pluginStr != "" {
 		pluginOpts := parsePluginString(pluginStr)
