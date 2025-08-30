@@ -1,0 +1,185 @@
+VPN CONFIG CONVERTER PROJECT
+
+DESKRIPSI:
+Buatkan aplikasi VPN Config Converter yang lengkap menggunakan Python dengan fitur web interface dan Telegram bot integration. Aplikasi ini harus bisa mengkonversi berbagai format URL VPN ke format config yang berbeda-beda.
+
+REQUIREMENTS:
+
+1. STRUKTUR PROJECT:
+   ```
+   project/
+   ├── app.py                 # Main Flask/FastAPI app
+   ├── bot.py                 # Telegram bot
+   ├── requirements.txt       # Python dependencies
+   ├── config.py             # Configuration settings
+   ├── templates/            # Config templates
+   │   ├── singbox-basic.json
+   │   ├── singbox-advanced.json
+   │   ├── clash-minimal.yaml
+   │   ├── clash-full.yaml
+   │   ├── v2ray-custom.json
+   │   └── xray-custom.json
+   ├── parsers/              # VPN URL parsers
+   │   ├── __init__.py
+   │   ├── vmess.py
+   │   ├── vless.py
+   │   ├── trojan.py
+   │   ├── shadowsocks.py
+   │   └── hysteria.py
+   ├── converters/           # Format converters
+   │   ├── __init__.py
+   │   ├── singbox.py
+   │   ├── clash.py
+   │   ├── v2ray.py
+   │   └── base.py
+   ├── utils/               # Utilities
+   │   ├── __init__.py
+   │   ├── base64_helper.py
+   │   ├── template_engine.py
+   │   └── validators.py
+   ├── static/              # Web assets
+   │   ├── css/
+   │   ├── js/
+   │   └── img/
+   └── templates_web/       # HTML templates
+       ├── index.html
+       └── layout.html
+   ```
+
+2. FITUR UTAMA:
+
+   A. WEB INTERFACE:
+   - Upload/paste VPN URLs (vmess, vless, trojan, ss, ssr, hysteria, tuic)
+   - Pilih format output (Singbox, Clash, V2ray, Xray, dll)
+   - Pilih template yang sudah disediakan
+   - Preview hasil konversi
+   - Download sebagai file config
+   - Generate QR code untuk subscription
+
+   B. TELEGRAM BOT:
+   - Command /convert untuk konversi URL
+   - Command /template untuk list template available
+   - Command /help untuk bantuan
+   - Support file upload config
+   - Inline query untuk quick convert
+   - Admin panel untuk manage templates
+
+   C. API ENDPOINTS:
+   - POST /api/convert - Convert VPN URLs
+   - GET /api/templates - List available templates
+   - POST /api/validate - Validate config
+   - GET /api/subscription - Convert subscription URL
+
+3. PROTOKOL VPN YANG DIDUKUNG:
+   INPUT:
+   - vmess:// (VMess protocol)
+   - vless:// (VLESS protocol)
+   - trojan:// (Trojan protocol)
+   - ss:// (Shadowsocks)
+   - ssr:// (ShadowsocksR)
+   - hysteria:// (Hysteria v1)
+   - hysteria2:// (Hysteria v2)
+   - tuic:// (TUIC protocol)
+   - hy2:// (Hysteria2 alias)
+
+   OUTPUT:
+   - Singbox (JSON format)
+   - Clash (YAML format)
+   - Clash Meta (YAML format)
+   - V2ray (JSON format)
+   - Xray (JSON format)
+   - Shadowrocket (text format)
+   - QuantumultX (text format)
+   - Surge (text format)
+
+4. TEMPLATE SYSTEM:
+   - Template menggunakan placeholder {{VARIABLE}}
+   - Support conditional rendering
+   - Multiple template per format (basic, advanced, custom)
+   - User bisa upload template sendiri
+   - Template validation sebelum digunakan
+
+5. FITUR ADVANCED:
+   - Subscription URL converter
+   - Config validator dengan syntax check
+   - Batch conversion (multiple URLs sekaligus)
+   - Config optimization untuk mobile/desktop
+   - Auto-detect protocol dari URL
+   - Error handling yang comprehensive
+   - Logging untuk debugging
+
+6. DEPLOYMENT:
+   - Support untuk Termux Android
+   - Docker container ready
+   - VPS deployment guide
+   - Environment variables untuk config
+   - Systemd service file
+
+7. SECURITY:
+   - Input validation dan sanitization
+   - Rate limiting untuk API
+   - CORS configuration
+   - No logging sensitive data
+   - Local processing (privacy-focused)
+
+8. UI/UX:
+   - Modern responsive design
+   - Dark/light theme toggle
+   - Progress indicators
+   - Copy to clipboard functionality
+   - Drag & drop file upload
+   - Real-time preview
+   - Mobile-first design
+
+9. TESTING:
+   - Unit tests untuk semua parsers
+   - Integration tests untuk converters
+   - Sample data untuk testing
+   - Performance benchmarks
+
+10. DOCUMENTATION:
+    - README.md dengan setup guide
+    - API documentation
+    - Template creation guide
+    - Termux installation steps
+    - Bot commands reference
+
+TECHNICAL REQUIREMENTS:
+- Python 3.8+
+- Flask/FastAPI untuk web framework
+- python-telegram-bot untuk bot
+- PyYAML untuk YAML handling
+- Jinja2 untuk template engine
+- Requests untuk HTTP operations
+- Base64, JSON, URL parsing
+- QR code generation
+- File upload handling
+
+DELIVERABLES:
+1. Complete Python application
+2. All template files
+3. Telegram bot implementation
+4. Web interface
+5. API documentation
+6. Deployment guide
+7. Termux setup instructions
+
+CATATAN KHUSUS:
+- Semua processing dilakukan secara lokal (privacy)
+- Support untuk custom template user
+- Error handling yang user-friendly
+- Optimized untuk penggunaan di Indonesia
+- Support bahasa Indonesia
+- Mobile responsive untuk Termux
+- Modular code structure untuk maintenance
+
+TARGET USERS:
+- Pengguna VPN di Indonesia
+- Developer yang butuh convert config
+- Admin server yang manage VPN
+- Mobile users (Termux)
+
+EXAMPLE USAGE:
+1. Web: Buka browser → paste URL VPN → pilih format → download
+2. Bot: /convert vmess://xxx → pilih format → terima file config
+3. API: curl -X POST /api/convert -d '{"urls": ["vmess://..."], "format": "singbox"}'
