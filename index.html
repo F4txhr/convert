@@ -3,178 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Converter - Konverter Serbaguna</title>
+    <title>VPN Config Converter - Konverter Konfigurasi VPN</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-exchange-alt"></i> Universal Converter</h1>
-            <p>Konverter serbaguna untuk berbagai kebutuhan Anda</p>
+            <h1><i class="fas fa-shield-alt"></i> VPN Config Converter</h1>
+            <p>Konverter konfigurasi VPN untuk berbagai format (Singbox, Clash, V2ray, Xray, dll)</p>
         </header>
 
         <nav class="converter-tabs">
-            <button class="tab-button active" onclick="showConverter('currency')">
-                <i class="fas fa-dollar-sign"></i> Mata Uang
+            <button class="tab-button active" onclick="showConverter('url-to-config')">
+                <i class="fas fa-link"></i> URL ke Config
             </button>
-            <button class="tab-button" onclick="showConverter('unit')">
-                <i class="fas fa-ruler"></i> Satuan
+            <button class="tab-button" onclick="showConverter('config-converter')">
+                <i class="fas fa-exchange-alt"></i> Convert Config
             </button>
-            <button class="tab-button" onclick="showConverter('temperature')">
-                <i class="fas fa-thermometer-half"></i> Suhu
+            <button class="tab-button" onclick="showConverter('subscription')">
+                <i class="fas fa-rss"></i> Subscription
             </button>
-            <button class="tab-button" onclick="showConverter('text')">
-                <i class="fas fa-font"></i> Teks
+            <button class="tab-button" onclick="showConverter('validator')">
+                <i class="fas fa-check-circle"></i> Validator
             </button>
         </nav>
 
-        <!-- Currency Converter -->
-        <div id="currency" class="converter-section active">
-            <h2>Konverter Mata Uang</h2>
+        <!-- URL to Config Converter -->
+        <div id="url-to-config" class="converter-section active">
+            <h2>Konversi URL VPN ke Config</h2>
             <div class="converter-form">
                 <div class="input-group">
-                    <label>Jumlah:</label>
-                    <input type="number" id="currencyAmount" placeholder="Masukkan jumlah" value="1">
+                    <label>Input VPN URL/Config:</label>
+                    <textarea id="vpnInput" placeholder="Masukkan URL VPN atau config (support: vmess://, vless://, trojan://, ss://, ssr://, hysteria://, dll)" rows="8"></textarea>
+                    <div class="input-helper">
+                        <small><i class="fas fa-info-circle"></i> Support multiple URLs (satu per baris)</small>
+                    </div>
                 </div>
-                <div class="currency-selector">
-                    <div class="currency-input">
-                        <label>Dari:</label>
-                        <select id="fromCurrency">
-                            <option value="USD">USD - Dollar Amerika</option>
-                            <option value="IDR" selected>IDR - Rupiah Indonesia</option>
-                            <option value="EUR">EUR - Euro</option>
-                            <option value="GBP">GBP - Pound Sterling</option>
-                            <option value="JPY">JPY - Yen Jepang</option>
-                            <option value="CNY">CNY - Yuan China</option>
+                
+                <div class="format-selector">
+                    <div class="format-group">
+                        <label>Format Output:</label>
+                        <select id="outputFormat">
+                            <option value="singbox">Singbox Config</option>
+                            <option value="clash">Clash Config</option>
+                            <option value="clash-meta">Clash Meta</option>
+                            <option value="v2ray">V2ray Config</option>
+                            <option value="xray">Xray Config</option>
+                            <option value="shadowrocket">Shadowrocket</option>
+                            <option value="quantumult-x">QuantumultX</option>
+                            <option value="surge">Surge</option>
                         </select>
                     </div>
-                    <button class="swap-button" onclick="swapCurrency()">
-                        <i class="fas fa-exchange-alt"></i>
+                    
+                    <div class="options-group">
+                        <label>
+                            <input type="checkbox" id="includeRules" checked>
+                            Include routing rules
+                        </label>
+                        <label>
+                            <input type="checkbox" id="includeDns" checked>
+                            Include DNS config
+                        </label>
+                        <label>
+                            <input type="checkbox" id="optimizeConfig">
+                            Optimize for mobile
+                        </label>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="convert-button" onclick="convertVpnConfig()">
+                        <i class="fas fa-cogs"></i> Convert Config
                     </button>
-                    <div class="currency-input">
-                        <label>Ke:</label>
-                        <select id="toCurrency">
-                            <option value="USD" selected>USD - Dollar Amerika</option>
-                            <option value="IDR">IDR - Rupiah Indonesia</option>
-                            <option value="EUR">EUR - Euro</option>
-                            <option value="GBP">GBP - Pound Sterling</option>
-                            <option value="JPY">JPY - Yen Jepang</option>
-                            <option value="CNY">CNY - Yuan China</option>
-                        </select>
+                    <button class="clear-button" onclick="clearInputs()">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+
+                <div class="result-container">
+                    <div class="result-header">
+                        <h3>Hasil Konversi:</h3>
+                        <div class="result-actions">
+                            <button class="copy-button" onclick="copyResult()" id="copyBtn" style="display:none;">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="download-button" onclick="downloadConfig()" id="downloadBtn" style="display:none;">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="result" id="configResult">
+                        <div class="empty-state">
+                            <i class="fas fa-file-code"></i>
+                            <p>Hasil konversi akan muncul di sini</p>
+                        </div>
                     </div>
                 </div>
-                <button class="convert-button" onclick="convertCurrency()">
-                    <i class="fas fa-calculator"></i> Konversi
-                </button>
-                <div class="result" id="currencyResult"></div>
             </div>
         </div>
 
-        <!-- Unit Converter -->
-        <div id="unit" class="converter-section">
-            <h2>Konverter Satuan</h2>
+        <!-- Config Format Converter -->
+        <div id="config-converter" class="converter-section">
+            <h2>Convert Antar Format Config</h2>
             <div class="converter-form">
-                <div class="input-group">
-                    <label>Kategori:</label>
-                    <select id="unitCategory" onchange="updateUnitOptions()">
-                        <option value="length">Panjang</option>
-                        <option value="weight">Berat</option>
-                        <option value="area">Luas</option>
-                        <option value="volume">Volume</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label>Jumlah:</label>
-                    <input type="number" id="unitAmount" placeholder="Masukkan jumlah" value="1">
-                </div>
-                <div class="unit-selector">
-                    <div class="unit-input">
-                        <label>Dari:</label>
-                        <select id="fromUnit"></select>
-                    </div>
-                    <button class="swap-button" onclick="swapUnit()">
-                        <i class="fas fa-exchange-alt"></i>
-                    </button>
-                    <div class="unit-input">
-                        <label>Ke:</label>
-                        <select id="toUnit"></select>
-                    </div>
-                </div>
-                <button class="convert-button" onclick="convertUnit()">
-                    <i class="fas fa-calculator"></i> Konversi
-                </button>
-                <div class="result" id="unitResult"></div>
-            </div>
-        </div>
-
-        <!-- Temperature Converter -->
-        <div id="temperature" class="converter-section">
-            <h2>Konverter Suhu</h2>
-            <div class="converter-form">
-                <div class="input-group">
-                    <label>Suhu:</label>
-                    <input type="number" id="tempAmount" placeholder="Masukkan suhu" value="0">
-                </div>
-                <div class="temp-selector">
-                    <div class="temp-input">
-                        <label>Dari:</label>
-                        <select id="fromTemp">
-                            <option value="celsius">Celsius (°C)</option>
-                            <option value="fahrenheit">Fahrenheit (°F)</option>
-                            <option value="kelvin">Kelvin (K)</option>
+                <div class="conversion-flow">
+                    <div class="format-input">
+                        <label>Format Input:</label>
+                        <select id="inputFormat">
+                            <option value="auto">Auto Detect</option>
+                            <option value="singbox">Singbox</option>
+                            <option value="clash">Clash</option>
+                            <option value="v2ray">V2ray</option>
+                            <option value="xray">Xray</option>
+                            <option value="shadowsocks">Shadowsocks</option>
                         </select>
                     </div>
-                    <button class="swap-button" onclick="swapTemp()">
-                        <i class="fas fa-exchange-alt"></i>
-                    </button>
-                    <div class="temp-input">
-                        <label>Ke:</label>
-                        <select id="toTemp">
-                            <option value="celsius">Celsius (°C)</option>
-                            <option value="fahrenheit" selected>Fahrenheit (°F)</option>
-                            <option value="kelvin">Kelvin (K)</option>
+                    
+                    <div class="arrow-icon">
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                    
+                    <div class="format-output">
+                        <label>Format Output:</label>
+                        <select id="convertOutputFormat">
+                            <option value="singbox">Singbox</option>
+                            <option value="clash">Clash</option>
+                            <option value="clash-meta">Clash Meta</option>
+                            <option value="v2ray">V2ray</option>
+                            <option value="xray">Xray</option>
+                            <option value="quantumult-x">QuantumultX</option>
                         </select>
                     </div>
                 </div>
-                <button class="convert-button" onclick="convertTemperature()">
-                    <i class="fas fa-calculator"></i> Konversi
+
+                <div class="input-group">
+                    <label>Config Input:</label>
+                    <textarea id="configInput" placeholder="Paste your config file content here..." rows="10"></textarea>
+                </div>
+
+                <button class="convert-button" onclick="convertConfigFormat()">
+                    <i class="fas fa-exchange-alt"></i> Convert Format
                 </button>
-                <div class="result" id="tempResult"></div>
+
+                <div class="result-container">
+                    <div class="result-header">
+                        <h3>Converted Config:</h3>
+                        <div class="result-actions">
+                            <button class="copy-button" onclick="copyConvertedResult()" id="copyConvertBtn" style="display:none;">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="download-button" onclick="downloadConvertedConfig()" id="downloadConvertBtn" style="display:none;">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="result" id="convertedResult">
+                        <div class="empty-state">
+                            <i class="fas fa-file-export"></i>
+                            <p>Converted config akan muncul di sini</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Text Converter -->
-        <div id="text" class="converter-section">
-            <h2>Konverter Teks</h2>
+        <!-- Subscription Converter -->
+        <div id="subscription" class="converter-section">
+            <h2>Subscription Link Converter</h2>
             <div class="converter-form">
                 <div class="input-group">
-                    <label>Teks Input:</label>
-                    <textarea id="textInput" placeholder="Masukkan teks yang ingin dikonversi..." rows="4"></textarea>
+                    <label>Subscription URL:</label>
+                    <input type="url" id="subUrl" placeholder="https://example.com/subscription">
+                    <div class="input-helper">
+                        <small><i class="fas fa-info-circle"></i> URL subscription dari provider VPN Anda</small>
+                    </div>
                 </div>
-                <div class="text-options">
-                    <button class="text-button" onclick="convertText('uppercase')">
-                        <i class="fas fa-font"></i> HURUF BESAR
-                    </button>
-                    <button class="text-button" onclick="convertText('lowercase')">
-                        <i class="fas fa-font"></i> huruf kecil
-                    </button>
-                    <button class="text-button" onclick="convertText('capitalize')">
-                        <i class="fas fa-font"></i> Huruf Kapital
-                    </button>
-                    <button class="text-button" onclick="convertText('reverse')">
-                        <i class="fas fa-undo"></i> Balik Teks
-                    </button>
+
+                <div class="sub-options">
+                    <div class="option-group">
+                        <label>Target Format:</label>
+                        <select id="subOutputFormat">
+                            <option value="singbox">Singbox Subscription</option>
+                            <option value="clash">Clash Subscription</option>
+                            <option value="v2ray">V2ray Subscription</option>
+                            <option value="base64">Base64 Encoded</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-options">
+                        <label>Filter Nodes:</label>
+                        <input type="text" id="nodeFilter" placeholder="e.g., SG|US|HK (regex supported)">
+                        <label>
+                            <input type="checkbox" id="removeExpired">
+                            Remove expired nodes
+                        </label>
+                    </div>
                 </div>
-                <div class="result" id="textResult"></div>
+
+                <button class="convert-button" onclick="convertSubscription()">
+                    <i class="fas fa-rss"></i> Convert Subscription
+                </button>
+
+                <div class="result-container">
+                    <div class="result-header">
+                        <h3>Converted Subscription:</h3>
+                        <div class="result-actions">
+                            <button class="copy-button" onclick="copySubResult()" id="copySubBtn" style="display:none;">
+                                <i class="fas fa-copy"></i> Copy URL
+                            </button>
+                            <button class="qr-button" onclick="generateQR()" id="qrBtn" style="display:none;">
+                                <i class="fas fa-qrcode"></i> QR Code
+                            </button>
+                        </div>
+                    </div>
+                    <div class="result" id="subResult">
+                        <div class="empty-state">
+                            <i class="fas fa-link"></i>
+                            <p>Converted subscription link akan muncul di sini</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Validator -->
+        <div id="validator" class="converter-section">
+            <h2>Config Validator & Analyzer</h2>
+            <div class="converter-form">
+                <div class="input-group">
+                    <label>Config untuk divalidasi:</label>
+                    <textarea id="validateInput" placeholder="Paste config content atau URL untuk divalidasi..." rows="8"></textarea>
+                </div>
+
+                <div class="validate-options">
+                    <label>
+                        <input type="checkbox" id="checkConnectivity" checked>
+                        Test connectivity
+                    </label>
+                    <label>
+                        <input type="checkbox" id="checkSyntax" checked>
+                        Validate syntax
+                    </label>
+                    <label>
+                        <input type="checkbox" id="analyzePerformance">
+                        Analyze performance
+                    </label>
+                </div>
+
+                <button class="convert-button" onclick="validateConfig()">
+                    <i class="fas fa-check-double"></i> Validate Config
+                </button>
+
+                <div class="result-container">
+                    <div class="result-header">
+                        <h3>Validation Results:</h3>
+                    </div>
+                    <div class="result" id="validateResult">
+                        <div class="empty-state">
+                            <i class="fas fa-clipboard-check"></i>
+                            <p>Hasil validasi akan muncul di sini</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR Code Modal -->
+        <div id="qrModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeQRModal()">&times;</span>
+                <h3>QR Code Subscription</h3>
+                <div id="qrcode"></div>
+                <p>Scan QR code ini dengan aplikasi VPN Anda</p>
             </div>
         </div>
 
         <footer>
-            <p>&copy; 2024 Universal Converter. Dibuat dengan ❤️</p>
+            <p>&copy; 2024 VPN Config Converter. Dibuat dengan ❤️ untuk komunitas VPN Indonesia</p>
+            <div class="footer-links">
+                <a href="#" onclick="showHelp()"><i class="fas fa-question-circle"></i> Help</a>
+                <a href="#" onclick="showAbout()"><i class="fas fa-info-circle"></i> About</a>
+            </div>
         </footer>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
