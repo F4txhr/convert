@@ -14,102 +14,108 @@ type ClashExporter struct{}
 
 func (c ClashExporter) Name() string { return "clash" }
 
-// createClashProxy converts a core.Profile into a detailed Clash proxy map.
-func createClashProxy(p core.Profile) map[string]interface{} {
-	// Base proxy object
-	proxy := map[string]interface{}{
-		"name":   p.ID,
-		"type":   p.Proto,
-		"server": p.Server,
-		"port":   p.Port,
+// createClashProxy converts a core.Profile into a detailed Clash proxy struct.
+func createClashProxy(p core.Profile) interface{} {
+	// Common settings for VLESS, VMess, Trojan
+	var tlsConfig *TLSConfig
+	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
+		tlsConfig = &TLSConfig{Enabled: true}
+		if sni, ok := p.Extra["sni"]; ok && sni != "" {
+			tlsConfig.ServerName = sni
+		} else if host, ok := p.Extra["host"]; ok && host != "" {
+			tlsConfig.ServerName = host // Fallback to host for SNI
+		}
+		if insecure, ok := p.Extra["insecure"]; ok && insecure == "true" {
+			tlsConfig.Insecure = true
+		}
 	}
 
-	// Protocol-specific fields and translations
+	var wsOpts *WSOpts
+	if transportType, ok := p.Extra["type"]; ok && transportType == "ws" {
+		wsOpts = &WSOpts{
+			Path:    p.Extra["path"],
+			Headers: WSHeaders{Host: p.Extra["host"]},
+		}
+	}
+	// Note: gRPC opts and other transport types can be added here in a similar fashion.
+
 	switch p.Proto {
 	case "vmess":
-		proxy["uuid"] = p.Auth["uuid"]
-		proxy["alterId"] = 0
-		proxy["cipher"] = "auto"
+		return VmessProxy{
+			Type:       "vmess",
+			Tag:        p.ID,
+			Server:     p.Server,
+			ServerPort: p.Port,
+			UUID:       p.Auth["uuid"],
+			AlterID:    0,
+			Security:   "auto",
+			TLS:        tlsConfig,
+			Network:    p.Extra["type"],
+			WSOpts:     wsOpts,
+		}
 	case "vless":
-		// Translate VLESS to Clash's vmess format
-		proxy["type"] = "vmess"
-		proxy["uuid"] = p.Auth["uuid"]
-		proxy["alterId"] = 0
-		proxy["cipher"] = "auto"
+		// VLESS uses the same struct but is identified as 'vmess' type for Clash
+		return VlessProxy{
+			Type:       "vmess",
+			Tag:        p.ID,
+			Server:     p.Server,
+			ServerPort: p.Port,
+			UUID:       p.Auth["uuid"],
+			TLS:        tlsConfig,
+			Network:    p.Extra["type"],
+			WSOpts:     wsOpts,
+		}
 	case "trojan":
-		proxy["password"] = p.Auth["password"]
-		proxy["smux"] = true // Smart Default
+		multiplex := &MultiplexConfig{Enabled: true} // smux for trojan
+		return TrojanProxy{
+			Type:       "trojan",
+			Tag:        p.ID,
+			Server:     p.Server,
+			ServerPort: p.Port,
+			Password:   p.Auth["password"],
+			TLS:        tlsConfig,
+			Multiplex:  multiplex,
+			Network:    p.Extra["type"],
+			WSOpts:     wsOpts,
+		}
 	case "ss":
-		proxy["cipher"] = p.Auth["method"]
-		proxy["password"] = p.Auth["password"]
-		if pluginName, ok := p.Extra["plugin"]; ok {
-			proxy["plugin"] = pluginName
-
-			// Build the plugin_opts string from Extra map, per user request
-			var opts []string
-			if mux, ok := p.Extra["mux"]; ok && mux != "0" {
-				opts = append(opts, "mux")
-			}
-			if path, ok := p.Extra["path"]; ok {
-				opts = append(opts, "path="+path)
-			}
-			if host, ok := p.Extra["host"]; ok {
-				opts = append(opts, "host="+host)
-			}
-			if _, ok := p.Extra["tls"]; ok {
-				opts = append(opts, "tls")
-			}
-			proxy["plugin-opts"] = strings.Join(opts, ";")
+		var opts []string
+		if mux, ok := p.Extra["mux"]; ok && mux != "0" {
+			opts = append(opts, "mux")
 		}
-		// Return early for SS as its structure is different
-		return proxy
+		if path, ok := p.Extra["path"]; ok {
+			opts = append(opts, "path="+path)
+		}
+		if host, ok := p.Extra["host"]; ok {
+			opts = append(opts, "host="+host)
+		}
+		if _, ok := p.Extra["tls"]; ok {
+			opts = append(opts, "tls=1")
+		}
+
+		return SSProxy{
+			Type:       "ss",
+			Tag:        p.ID,
+			Server:     p.Server,
+			ServerPort: p.Port,
+			Method:     p.Auth["method"],
+			Password:   p.Auth["password"],
+			Plugin:     p.Extra["plugin"],
+			PluginOpts: strings.Join(opts, ";"),
+		}
 	case "wg":
-		proxy["ip"] = "172.19.0.2" // Smart Default
-		proxy["private-key"] = p.Auth["private_key"]
-		proxy["public-key"] = p.Extra["publicKey"]
-		// 'reserved' can be added if present in Extra
-		return proxy // WG has a simpler structure, return early
-	}
-
-	// Common settings for VLESS, VMess, Trojan
-	// TLS Settings
-	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
-		proxy["tls"] = true
-		if sni, ok := p.Extra["sni"]; ok && sni != "" {
-			proxy["servername"] = sni
-		} else if host, ok := p.Extra["host"]; ok && host != "" {
-			proxy["servername"] = host // Fallback to host for SNI
-		}
-
-		// Per user example, insecure is often a requirement
-		if insecure, ok := p.Extra["insecure"]; ok && insecure == "true" {
-			proxy["skip-cert-verify"] = true
+		return WGProxy{
+			Type:          "wireguard",
+			Tag:           p.ID,
+			Server:        p.Server,
+			ServerPort:    p.Port,
+			PrivateKey:    p.Auth["private_key"],
+			PeerPublicKey: p.Extra["publicKey"],
+			IP:            "172.19.0.2",
 		}
 	}
 
-	// Transport Settings
-	if transportType, ok := p.Extra["type"]; ok {
-		proxy["network"] = transportType
-		switch transportType {
-		case "ws":
-			wsOpts := make(map[string]interface{})
-			if path, ok := p.Extra["path"]; ok {
-				wsOpts["path"] = path
-			}
-			if host, ok := p.Extra["host"]; ok {
-				wsOpts["headers"] = map[string]string{"Host": host}
-			}
-			proxy["ws-opts"] = wsOpts
-		case "grpc":
-			grpcOpts := make(map[string]interface{})
-			if serviceName, ok := p.Extra["serviceName"]; ok {
-				grpcOpts["grpc-service-name"] = serviceName
-			}
-			proxy["grpc-opts"] = grpcOpts
-		}
-	}
-
-	return proxy
+	return nil // Should not happen
 }
 
 func (c ClashExporter) Render(p core.Profile) (string, error) {

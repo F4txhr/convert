@@ -13,100 +13,117 @@ type SingboxExporter struct{}
 
 func (s SingboxExporter) Name() string { return "singbox" }
 
-// createSingboxProxy converts a core.Profile into a detailed Sing-box outbound map.
-func createSingboxProxy(p core.Profile) map[string]interface{} {
-	// Base proxy object
-	proxy := map[string]interface{}{
-		"type":            p.Proto,
-		"tag":             p.ID,
-		"server":          p.Server,
-		"server_port":     p.Port,
-		"domain_strategy": "ipv4_only", // Smart Default
-	}
-
-	// Protocol-specific fields
-	switch p.Proto {
-	case "vmess":
-		proxy["uuid"] = p.Auth["uuid"]
-		proxy["security"] = "zero"
-		proxy["alter_id"] = 0
-		proxy["packet_encoding"] = "xudp"
-	case "vless":
-		proxy["uuid"] = p.Auth["uuid"]
-		proxy["packet_encoding"] = "xudp"
-	case "trojan":
-		proxy["password"] = p.Auth["password"]
-	case "ss":
-		// Per user request, generate the non-standard Clash-like format for SS
-		proxy["method"] = p.Auth["method"]
-		proxy["password"] = p.Auth["password"]
-		if pluginName, ok := p.Extra["plugin"]; ok {
-			proxy["plugin"] = pluginName
-
-			// Build the plugin_opts string from Extra map
-			var opts []string
-			if mux, ok := p.Extra["mux"]; ok { // This is a hypothetical field for demo
-				opts = append(opts, "mux="+mux)
-			}
-			if path, ok := p.Extra["path"]; ok {
-				opts = append(opts, "path="+path)
-			}
-			if host, ok := p.Extra["host"]; ok {
-				opts = append(opts, "host="+host)
-			}
-			if _, ok := p.Extra["tls"]; ok {
-				opts = append(opts, "tls=1")
-			}
-			proxy["plugin_opts"] = strings.Join(opts, ";")
-		}
-		// Return early for SS as its structure is completely different
-		return proxy
-	case "wg":
-		proxy["local_address"] = []string{"172.19.0.2/32"} // Smart Default
-		proxy["private_key"] = p.Auth["private_key"]
-		proxy["peer_public_key"] = p.Extra["publicKey"]
-		// 'reserved' can be added if present in Extra
-		return proxy // WG has a simpler structure, return early
-	}
-
+// createSingboxProxy converts a core.Profile into a detailed Sing-box proxy struct.
+func createSingboxProxy(p core.Profile) interface{} {
 	// Common settings for VLESS, VMess, Trojan
-	// TLS Settings
+	var tlsConfig *TLSConfig
 	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
-		tlsSettings := map[string]interface{}{
-			"enabled":  true,
-			"insecure": true, // Per user example
+		tlsConfig = &TLSConfig{
+			Enabled:  true,
+			Insecure: true, // Per user example
 		}
 		if sni, ok := p.Extra["sni"]; ok && sni != "" {
-			tlsSettings["server_name"] = sni
+			tlsConfig.ServerName = sni
 		} else if host, ok := p.Extra["host"]; ok && host != "" {
-			tlsSettings["server_name"] = host // Fallback to host for SNI
+			tlsConfig.ServerName = host // Fallback to host for SNI
 		}
-		proxy["tls"] = tlsSettings
 	}
 
-	// Transport Settings (e.g., WebSocket)
+	var transport *SingboxTransport
 	if transportType, ok := p.Extra["type"]; ok && transportType == "ws" {
-		headers := make(map[string]string)
+		transport = &SingboxTransport{
+			Type:                "ws",
+			Path:                p.Extra["path"],
+			Headers:             WSHeaders{Host: p.Extra["host"]},
+			EarlyDataHeaderName: "Sec-WebSocket-Protocol",
+		}
+	}
+
+	multiplex := &MultiplexConfig{
+		Enabled:    true,
+		Protocol:   "smux",
+		MaxStreams: 32,
+	}
+
+	switch p.Proto {
+	case "vmess":
+		return VmessProxy{
+			Type:           "vmess",
+			Tag:            p.ID,
+			DomainStrategy: "ipv4_only",
+			Server:         p.Server,
+			ServerPort:     p.Port,
+			UUID:           p.Auth["uuid"],
+			AlterID:        0,
+			Security:       "zero",
+			TLS:            tlsConfig,
+			Transport:      transport,
+			Multiplex:      multiplex,
+			PacketEncoding: "xudp",
+		}
+	case "vless":
+		return VlessProxy{
+			Type:           "vless",
+			Tag:            p.ID,
+			DomainStrategy: "ipv4_only",
+			Server:         p.Server,
+			ServerPort:     p.Port,
+			UUID:           p.Auth["uuid"],
+			TLS:            tlsConfig,
+			Transport:      transport,
+			Multiplex:      multiplex,
+			PacketEncoding: "xudp",
+		}
+	case "trojan":
+		return TrojanProxy{
+			Type:           "trojan",
+			Tag:            p.ID,
+			DomainStrategy: "ipv4_only",
+			Server:         p.Server,
+			ServerPort:     p.Port,
+			Password:       p.Auth["password"],
+			TLS:            tlsConfig,
+			Transport:      transport,
+			Multiplex:      multiplex,
+		}
+	case "ss":
+		var opts []string
+		if mux, ok := p.Extra["mux"]; ok && mux != "0" {
+			opts = append(opts, "mux")
+		}
+		if path, ok := p.Extra["path"]; ok {
+			opts = append(opts, "path="+path)
+		}
 		if host, ok := p.Extra["host"]; ok {
-			headers["Host"] = host
+			opts = append(opts, "host="+host)
+		}
+		if _, ok := p.Extra["tls"]; ok {
+			opts = append(opts, "tls=1")
 		}
 
-		proxy["transport"] = map[string]interface{}{
-			"type":                   "ws",
-			"path":                   p.Extra["path"],
-			"headers":                headers,
-			"early_data_header_name": "Sec-WebSocket-Protocol", // Smart Default
+		return SSProxy{
+			Type:       "shadowsocks",
+			Tag:        p.ID,
+			Server:     p.Server,
+			ServerPort: p.Port,
+			Method:     p.Auth["method"],
+			Password:   p.Auth["password"],
+			Plugin:     p.Extra["plugin"],
+			PluginOpts: strings.Join(opts, ";"),
+		}
+	case "wg":
+		return WGProxy{
+			Type:          "wireguard",
+			Tag:           p.ID,
+			Server:        p.Server,
+			ServerPort:    p.Port,
+			PrivateKey:    p.Auth["private_key"],
+			PeerPublicKey: p.Extra["publicKey"],
+			LocalAddress:  []string{"172.19.0.2/32"},
 		}
 	}
 
-	// Multiplex Settings
-	proxy["multiplex"] = map[string]interface{}{
-		"enabled":     true,
-		"protocol":    "smux",
-		"max_streams": 32,
-	}
-
-	return proxy
+	return nil // Should not happen
 }
 
 func (s SingboxExporter) Render(p core.Profile) (string, error) {

@@ -15,7 +15,6 @@ func (p SSParser) Scheme() string {
 }
 
 // parsePluginString takes a SIP002 plugin string and returns a map of options.
-// Example: "v2ray-plugin;path=/ss-ws;host=cdn.domain.com"
 func parsePluginString(pluginStr string) map[string]string {
 	opts := make(map[string]string)
 	parts := strings.Split(pluginStr, ";")
@@ -34,8 +33,6 @@ func parsePluginString(pluginStr string) map[string]string {
 }
 
 func (p SSParser) Parse(uri string) (core.Profile, error) {
-	// Base64 decoding logic needs to handle the fragment correctly.
-	// ss://BASE64PART#Fragment -> BASE64PART is `method:pass@host:port?plugin=...`
 	var fragment string
 	if strings.Contains(uri, "#") {
 		parts := strings.SplitN(uri, "#", 2)
@@ -45,13 +42,12 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	rawURL := strings.TrimPrefix(uri, "ss://")
 
-	// If no "@", assume the entire URI part is base64 encoded.
+	// If no "@" symbol, it's a fully base64 encoded URI body.
 	if !strings.Contains(rawURL, "@") {
 		decoded, err := base64.StdEncoding.DecodeString(rawURL)
 		if err != nil {
 			return core.Profile{}, err
 		}
-		// Re-attach fragment to the parsed content and parse recursively.
 		recursiveURI := "ss://" + string(decoded)
 		if fragment != "" {
 			recursiveURI += "#" + fragment
@@ -59,7 +55,7 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		return p.Parse(recursiveURI)
 	}
 
-	// It's a plain URI now.
+	// At this point, we have a plain URI with an "@" symbol.
 	fullURI := "ss://" + rawURL
 	if fragment != "" {
 		fullURI += "#" + fragment
@@ -71,27 +67,33 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	port, _ := strconv.Atoi(u.Port())
 
-	// Handle the user info part, which could be plain or base64.
 	var method, password string
-	userInfo := u.User.Username()
+	if u.User != nil {
+		// url.Parse is smart. If userinfo is `user:pass`, it splits them.
+		// If there's no colon, the whole thing is the Username.
+		pass, passSet := u.User.Password()
+		if passSet {
+			// Standard `method:password` format.
+			method = u.User.Username()
+			password = pass
+		} else {
+			// The whole userinfo is in the username field.
+			// This part could be plain text or base64.
+			userInfo := u.User.Username()
+			toParse := userInfo
+			// Try to decode it. If successful, use the decoded string.
+			if decoded, err := base64.StdEncoding.DecodeString(userInfo); err == nil {
+				toParse = string(decoded)
+			}
 
-	// Try to decode user info as Base64.
-	decodedUserInfo, err := base64.StdEncoding.DecodeString(userInfo)
-	var credsToParse string
-	if err == nil {
-		// Decoding successful, use the decoded string.
-		credsToParse = string(decodedUserInfo)
-	} else {
-		// Decoding failed, assume plain text.
-		credsToParse = userInfo
-	}
-
-	parts := strings.SplitN(credsToParse, ":", 2)
-	if len(parts) > 0 {
-		method = parts[0]
-	}
-	if len(parts) > 1 {
-		password = parts[1]
+			parts := strings.SplitN(toParse, ":", 2)
+			if len(parts) > 0 {
+				method = parts[0]
+			}
+			if len(parts) > 1 {
+				password = parts[1]
+			}
+		}
 	}
 
 	// Parse plugin options from query parameters.
