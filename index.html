@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Converter - Konverter Serbaguna</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-exchange-alt"></i> Universal Converter</h1>
+            <p>Konverter serbaguna untuk berbagai kebutuhan Anda</p>
+        </header>
+
+        <nav class="converter-tabs">
+            <button class="tab-button active" onclick="showConverter('currency')">
+                <i class="fas fa-dollar-sign"></i> Mata Uang
+            </button>
+            <button class="tab-button" onclick="showConverter('unit')">
+                <i class="fas fa-ruler"></i> Satuan
+            </button>
+            <button class="tab-button" onclick="showConverter('temperature')">
+                <i class="fas fa-thermometer-half"></i> Suhu
+            </button>
+            <button class="tab-button" onclick="showConverter('text')">
+                <i class="fas fa-font"></i> Teks
+            </button>
+        </nav>
+
+        <!-- Currency Converter -->
+        <div id="currency" class="converter-section active">
+            <h2>Konverter Mata Uang</h2>
+            <div class="converter-form">
+                <div class="input-group">
+                    <label>Jumlah:</label>
+                    <input type="number" id="currencyAmount" placeholder="Masukkan jumlah" value="1">
+                </div>
+                <div class="currency-selector">
+                    <div class="currency-input">
+                        <label>Dari:</label>
+                        <select id="fromCurrency">
+                            <option value="USD">USD - Dollar Amerika</option>
+                            <option value="IDR" selected>IDR - Rupiah Indonesia</option>
+                            <option value="EUR">EUR - Euro</option>
+                            <option value="GBP">GBP - Pound Sterling</option>
+                            <option value="JPY">JPY - Yen Jepang</option>
+                            <option value="CNY">CNY - Yuan China</option>
+                        </select>
+                    </div>
+                    <button class="swap-button" onclick="swapCurrency()">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                    <div class="currency-input">
+                        <label>Ke:</label>
+                        <select id="toCurrency">
+                            <option value="USD" selected>USD - Dollar Amerika</option>
+                            <option value="IDR">IDR - Rupiah Indonesia</option>
+                            <option value="EUR">EUR - Euro</option>
+                            <option value="GBP">GBP - Pound Sterling</option>
+                            <option value="JPY">JPY - Yen Jepang</option>
+                            <option value="CNY">CNY - Yuan China</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="convert-button" onclick="convertCurrency()">
+                    <i class="fas fa-calculator"></i> Konversi
+                </button>
+                <div class="result" id="currencyResult"></div>
+            </div>
+        </div>
+
+        <!-- Unit Converter -->
+        <div id="unit" class="converter-section">
+            <h2>Konverter Satuan</h2>
+            <div class="converter-form">
+                <div class="input-group">
+                    <label>Kategori:</label>
+                    <select id="unitCategory" onchange="updateUnitOptions()">
+                        <option value="length">Panjang</option>
+                        <option value="weight">Berat</option>
+                        <option value="area">Luas</option>
+                        <option value="volume">Volume</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Jumlah:</label>
+                    <input type="number" id="unitAmount" placeholder="Masukkan jumlah" value="1">
+                </div>
+                <div class="unit-selector">
+                    <div class="unit-input">
+                        <label>Dari:</label>
+                        <select id="fromUnit"></select>
+                    </div>
+                    <button class="swap-button" onclick="swapUnit()">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                    <div class="unit-input">
+                        <label>Ke:</label>
+                        <select id="toUnit"></select>
+                    </div>
+                </div>
+                <button class="convert-button" onclick="convertUnit()">
+                    <i class="fas fa-calculator"></i> Konversi
+                </button>
+                <div class="result" id="unitResult"></div>
+            </div>
+        </div>
+
+        <!-- Temperature Converter -->
+        <div id="temperature" class="converter-section">
+            <h2>Konverter Suhu</h2>
+            <div class="converter-form">
+                <div class="input-group">
+                    <label>Suhu:</label>
+                    <input type="number" id="tempAmount" placeholder="Masukkan suhu" value="0">
+                </div>
+                <div class="temp-selector">
+                    <div class="temp-input">
+                        <label>Dari:</label>
+                        <select id="fromTemp">
+                            <option value="celsius">Celsius (°C)</option>
+                            <option value="fahrenheit">Fahrenheit (°F)</option>
+                            <option value="kelvin">Kelvin (K)</option>
+                        </select>
+                    </div>
+                    <button class="swap-button" onclick="swapTemp()">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                    <div class="temp-input">
+                        <label>Ke:</label>
+                        <select id="toTemp">
+                            <option value="celsius">Celsius (°C)</option>
+                            <option value="fahrenheit" selected>Fahrenheit (°F)</option>
+                            <option value="kelvin">Kelvin (K)</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="convert-button" onclick="convertTemperature()">
+                    <i class="fas fa-calculator"></i> Konversi
+                </button>
+                <div class="result" id="tempResult"></div>
+            </div>
+        </div>
+
+        <!-- Text Converter -->
+        <div id="text" class="converter-section">
+            <h2>Konverter Teks</h2>
+            <div class="converter-form">
+                <div class="input-group">
+                    <label>Teks Input:</label>
+                    <textarea id="textInput" placeholder="Masukkan teks yang ingin dikonversi..." rows="4"></textarea>
+                </div>
+                <div class="text-options">
+                    <button class="text-button" onclick="convertText('uppercase')">
+                        <i class="fas fa-font"></i> HURUF BESAR
+                    </button>
+                    <button class="text-button" onclick="convertText('lowercase')">
+                        <i class="fas fa-font"></i> huruf kecil
+                    </button>
+                    <button class="text-button" onclick="convertText('capitalize')">
+                        <i class="fas fa-font"></i> Huruf Kapital
+                    </button>
+                    <button class="text-button" onclick="convertText('reverse')">
+                        <i class="fas fa-undo"></i> Balik Teks
+                    </button>
+                </div>
+                <div class="result" id="textResult"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2024 Universal Converter. Dibuat dengan ❤️</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
