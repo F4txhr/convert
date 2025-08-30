@@ -3,6 +3,7 @@ package export
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"vpn-conv/internal/core"
@@ -45,6 +46,7 @@ func createSingboxProxy(p core.Profile) map[string]interface{} {
 }
 
 func (s SingboxExporter) Render(p core.Profile) (string, error) {
+	log.Println("DEBUG: Using new Sing-box template exporter...")
 	// 1. Read the template file
 	templateBytes, err := os.ReadFile("configs/template_singbox.json")
 	if err != nil {
@@ -99,6 +101,25 @@ func (s SingboxExporter) Render(p core.Profile) (string, error) {
 				// Re-assign the modified map back to the slice
 				outbounds[i] = group
 			}
+		}
+	}
+
+	// 5.5: Add direct fallback to empty url-test groups
+	for i, outboundInterface := range outbounds {
+		group, isMap := outboundInterface.(map[string]interface{})
+		if !isMap {
+			continue
+		}
+
+		groupType, hasType := group["type"].(string)
+		if !hasType || groupType != "urltest" {
+			continue
+		}
+
+		groupOutbounds, ok := group["outbounds"].([]interface{})
+		if !ok || len(groupOutbounds) == 0 {
+			group["outbounds"] = []interface{}{"direct 🚸"}
+			outbounds[i] = group
 		}
 	}
 

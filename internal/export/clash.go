@@ -2,6 +2,7 @@ package export
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"vpn-conv/internal/core"
@@ -55,6 +56,7 @@ func createClashProxy(p core.Profile) map[string]interface{} {
 }
 
 func (c ClashExporter) Render(p core.Profile) (string, error) {
+	log.Println("DEBUG: Using new Clash template exporter...")
 	// 1. Read the template file
 	templateBytes, err := os.ReadFile("configs/template_clash.yaml")
 	if err != nil {
@@ -112,6 +114,25 @@ func (c ClashExporter) Render(p core.Profile) (string, error) {
 				group["proxies"] = append(groupProxies, proxyName)
 				proxyGroups[i] = group
 			}
+		}
+	}
+
+	// 5.5: Add direct fallback to empty url-test groups
+	for i, groupInterface := range proxyGroups {
+		group, isMap := groupInterface.(map[string]interface{})
+		if !isMap {
+			continue
+		}
+
+		groupType, hasType := group["type"].(string)
+		if !hasType || groupType != "url-test" {
+			continue
+		}
+
+		groupProxies, ok := group["proxies"].([]interface{})
+		if !ok || len(groupProxies) == 0 {
+			group["proxies"] = []interface{}{"direct 🚸"}
+			proxyGroups[i] = group
 		}
 	}
 
