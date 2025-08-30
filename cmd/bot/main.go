@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -9,18 +10,35 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// getFileExtension returns the correct file extension for a given format.
+func getFileExtension(format string) string {
+	switch format {
+	case "clash":
+		return "yaml"
+	case "v2ray", "singbox":
+		return "json"
+	case "raw":
+		return "txt"
+	default:
+		return "txt" // Default to text for unknown formats
+	}
+}
+
 func main() {
+	log.Println("Starting bot...")
+	log.Println("Reading BOT_TOKEN from environment...")
 	token := os.Getenv("BOT_TOKEN")
 	if token == "" {
-		log.Fatal("BOT_TOKEN not set")
+		log.Fatal("FATAL: BOT_TOKEN environment variable not set.")
 	}
 
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("FATAL: Failed to create bot API: %v", err)
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
+	log.Println("Bot is now running and listening for commands.")
 
 	renderer := service.NewRenderer()
 
@@ -59,8 +77,12 @@ func main() {
 				continue
 			}
 
+			// Use the new function to get the correct file extension.
+			ext := getFileExtension(format)
+			fileName := fmt.Sprintf("config.%s", ext)
+
 			doc := tgbotapi.FileBytes{
-				Name:  "config." + format,
+				Name:  fileName,
 				Bytes: []byte(output),
 			}
 			msg := tgbotapi.NewDocument(update.Message.Chat.ID, doc)
