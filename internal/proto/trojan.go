@@ -3,7 +3,6 @@ package proto
 import (
 	"net/url"
 	"strconv"
-	"strings"
 	"vpn-conv/internal/core"
 )
 
@@ -14,13 +13,22 @@ func (p TrojanParser) Scheme() string {
 }
 
 func (p TrojanParser) Parse(uri string) (core.Profile, error) {
-	raw := strings.TrimPrefix(uri, "trojan://")
-	u, err := url.Parse("trojan://" + raw)
+	u, err := url.Parse(uri)
 	if err != nil {
 		return core.Profile{}, err
 	}
 
 	port, _ := strconv.Atoi(u.Port())
+
+	extra := make(map[string]string)
+	query := u.Query()
+	for key := range query {
+		extra[key] = query.Get(key)
+	}
+
+	if u.Path != "" {
+		extra["path"] = u.Path
+	}
 
 	return core.Profile{
 		ID:     u.Fragment,
@@ -28,6 +36,6 @@ func (p TrojanParser) Parse(uri string) (core.Profile, error) {
 		Server: u.Hostname(),
 		Port:   port,
 		Auth:   map[string]string{"password": u.User.Username()},
-		Extra:  map[string]string{"sni": u.Query().Get("sni")},
+		Extra:  extra,
 	}, nil
 }

@@ -13,7 +13,7 @@ type SingboxExporter struct{}
 
 func (s SingboxExporter) Name() string { return "singbox" }
 
-// createSingboxProxy converts a core.Profile into a Sing-box outbound map.
+// createSingboxProxy converts a core.Profile into a detailed Sing-box outbound map.
 func createSingboxProxy(p core.Profile) map[string]interface{} {
 	proxy := map[string]interface{}{
 		"type":        p.Proto,
@@ -26,6 +26,10 @@ func createSingboxProxy(p core.Profile) map[string]interface{} {
 	switch p.Proto {
 	case "vless", "vmess":
 		proxy["uuid"] = p.Auth["uuid"]
+		if p.Proto == "vmess" {
+			proxy["security"] = "auto"
+			proxy["alter_id"] = 0
+		}
 	case "trojan":
 		proxy["password"] = p.Auth["password"]
 	case "ss":
@@ -33,12 +37,38 @@ func createSingboxProxy(p core.Profile) map[string]interface{} {
 		proxy["password"] = p.Auth["password"]
 	}
 
-	// This is a simplified example. A full implementation would need
-	// to parse more details from p.Extra for tls, transport, etc.
-	if sni, ok := p.Extra["sni"]; ok {
-		proxy["tls"] = map[string]interface{}{
+	// TLS Settings
+	if security, ok := p.Extra["security"]; ok && security == "tls" {
+		tlsSettings := map[string]interface{}{"enabled": true}
+		if sni, ok := p.Extra["sni"]; ok {
+			tlsSettings["server_name"] = sni
+		}
+		// Note: Sing-box doesn't typically have an 'insecure' option like Clash.
+		// It might be handled by 'utls' or other settings if needed.
+		proxy["tls"] = tlsSettings
+	}
+
+	// Transport Settings (e.g., WebSocket, gRPC)
+	if transportType, ok := p.Extra["type"]; ok && (transportType == "ws" || transportType == "grpc") {
+		transportSettings := map[string]interface{}{"type": transportType}
+		if path, ok := p.Extra["path"]; ok {
+			transportSettings["path"] = path
+		}
+		if host, ok := p.Extra["host"]; ok {
+			transportSettings["headers"] = map[string]string{"Host": host}
+		}
+		if serviceName, ok := p.Extra["serviceName"]; ok {
+			transportSettings["service_name"] = serviceName
+		}
+		proxy["transport"] = transportSettings
+	}
+
+	// Multiplex Settings (Smart Default for Trojan)
+	if p.Proto == "trojan" {
+		proxy["multiplex"] = map[string]interface{}{
 			"enabled":     true,
-			"server_name": sni,
+			"protocol":    "smux",
+			"max_streams": 32,
 		}
 	}
 

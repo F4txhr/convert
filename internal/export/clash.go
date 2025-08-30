@@ -14,7 +14,7 @@ type ClashExporter struct{}
 
 func (c ClashExporter) Name() string { return "clash" }
 
-// createClashProxy converts a core.Profile into a Clash proxy map.
+// createClashProxy converts a core.Profile into a detailed Clash proxy map.
 func createClashProxy(p core.Profile) map[string]interface{} {
 	// Clash proxy type mapping
 	clashType := p.Proto
@@ -30,26 +30,56 @@ func createClashProxy(p core.Profile) map[string]interface{} {
 		"port":   p.Port,
 	}
 
+	// Add protocol-specific auth details
 	switch p.Proto {
-	case "vmess":
+	case "vmess", "vless":
 		proxy["uuid"] = p.Auth["uuid"]
 		proxy["alterId"] = 0
 		proxy["cipher"] = "auto"
-	case "vless":
-		proxy["uuid"] = p.Auth["uuid"]
-		proxy["alterId"] = 0
-		proxy["cipher"] = "auto"
-		if network, ok := p.Extra["type"]; ok && network == "ws" {
-			proxy["network"] = "ws"
-		}
 	case "trojan":
 		proxy["password"] = p.Auth["password"]
-		if sni, ok := p.Extra["sni"]; ok {
-			proxy["sni"] = sni
-		}
 	case "ss":
 		proxy["cipher"] = p.Auth["method"]
 		proxy["password"] = p.Auth["password"]
+	}
+
+	// TLS Settings
+	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
+		proxy["tls"] = true
+		if sni, ok := p.Extra["sni"]; ok {
+			proxy["servername"] = sni
+		}
+		if insecure, ok := p.Extra["skip-cert-verify"]; ok && insecure == "true" {
+			proxy["skip-cert-verify"] = true
+		}
+	}
+
+	// Transport Settings (e.g., WebSocket, gRPC)
+	if transportType, ok := p.Extra["type"]; ok {
+		proxy["network"] = transportType
+		switch transportType {
+		case "ws":
+			wsOpts := make(map[string]interface{})
+			if path, ok := p.Extra["path"]; ok {
+				wsOpts["path"] = path
+			}
+			if host, ok := p.Extra["host"]; ok {
+				wsOpts["headers"] = map[string]string{"Host": host}
+			}
+			proxy["ws-opts"] = wsOpts
+		case "grpc":
+			grpcOpts := make(map[string]interface{})
+			if serviceName, ok := p.Extra["serviceName"]; ok {
+				grpcOpts["grpc-service-name"] = serviceName
+			}
+			proxy["grpc-opts"] = grpcOpts
+		}
+	}
+
+	// Multiplex Settings (Smart Default for Trojan)
+	if p.Proto == "trojan" {
+		// smux is a sub-field in clash, often enabled by default with ws/grpc
+		// but we can make it explicit if needed. For now, we assume default behavior.
 	}
 
 	return proxy

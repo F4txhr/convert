@@ -3,6 +3,7 @@ package proto
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"vpn-conv/internal/core"
@@ -21,19 +22,41 @@ func (p VmessParser) Parse(uri string) (core.Profile, error) {
 		return core.Profile{}, err
 	}
 
-	var vm map[string]string
+	// Unmarshal into a flexible map to handle different value types
+	var vm map[string]interface{}
 	if err := json.Unmarshal(data, &vm); err != nil {
 		return core.Profile{}, err
 	}
 
-	port, _ := strconv.Atoi(vm["port"])
+	// Helper to safely get string values from the map
+	getString := func(key string) string {
+		if val, ok := vm[key].(string); ok {
+			return val
+		}
+		return ""
+	}
+
+	// Port can be a string or a number in vmess links
+	var port int
+	switch p := vm["port"].(type) {
+	case string:
+		port, _ = strconv.Atoi(p)
+	case float64:
+		port = int(p)
+	}
+
+	// Populate Extra map with all string-representable values from the VMess JSON
+	extra := make(map[string]string)
+	for key, value := range vm {
+		extra[key] = fmt.Sprintf("%v", value)
+	}
 
 	return core.Profile{
-		ID:     vm["ps"],
+		ID:     getString("ps"),
 		Proto:  "vmess",
-		Server: vm["add"],
+		Server: getString("add"),
 		Port:   port,
-		Auth:   map[string]string{"uuid": vm["id"]},
-		Extra:  vm,
+		Auth:   map[string]string{"uuid": getString("id")},
+		Extra:  extra,
 	}, nil
 }
