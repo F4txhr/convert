@@ -16,28 +16,33 @@ func (c ClashExporter) Name() string { return "clash" }
 
 // createClashProxy converts a core.Profile into a detailed Clash proxy struct.
 func createClashProxy(p core.Profile) interface{} {
-	// Common settings for VLESS, VMess, Trojan
+	// Translate the structured core.Profile to the output structs
 	var tlsConfig *TLSConfig
-	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
-		tlsConfig = &TLSConfig{Enabled: true}
-		if sni, ok := p.Extra["sni"]; ok && sni != "" {
-			tlsConfig.ServerName = sni
-		} else if host, ok := p.Extra["host"]; ok && host != "" {
-			tlsConfig.ServerName = host // Fallback to host for SNI
-		}
-		if insecure, ok := p.Extra["insecure"]; ok && insecure == "true" {
-			tlsConfig.Insecure = true
+	if p.TLS != nil && p.TLS.Enabled {
+		tlsConfig = &TLSConfig{
+			Enabled:    true,
+			Insecure:   p.TLS.Insecure,
+			ServerName: p.TLS.ServerName,
 		}
 	}
 
 	var wsOpts *WSOpts
-	if transportType, ok := p.Extra["type"]; ok && transportType == "ws" {
-		wsOpts = &WSOpts{
-			Path:    p.Extra["path"],
-			Headers: WSHeaders{Host: p.Extra["host"]},
+	var grpcOpts *GRPCOpts
+	var networkType string
+	if p.Transport != nil {
+		networkType = p.Transport.Type
+		switch p.Transport.Type {
+		case "ws":
+			wsOpts = &WSOpts{
+				Path:    p.Transport.Path,
+				Headers: WSHeaders{Host: p.Transport.Host},
+			}
+		case "grpc":
+			grpcOpts = &GRPCOpts{
+				ServiceName: p.Transport.ServiceName,
+			}
 		}
 	}
-	// Note: gRPC opts and other transport types can be added here in a similar fashion.
 
 	switch p.Proto {
 	case "vmess":
@@ -50,23 +55,23 @@ func createClashProxy(p core.Profile) interface{} {
 			AlterID:    0,
 			Security:   "auto",
 			TLS:        tlsConfig,
-			Network:    p.Extra["type"],
+			Network:    networkType,
 			WSOpts:     wsOpts,
+			GRPCOpts:   grpcOpts,
 		}
 	case "vless":
-		// VLESS uses the same struct but is identified as 'vmess' type for Clash
 		return VlessProxy{
-			Type:       "vmess",
+			Type:       "vmess", // VLESS uses 'vmess' type in Clash
 			Tag:        p.ID,
 			Server:     p.Server,
 			ServerPort: p.Port,
 			UUID:       p.Auth["uuid"],
 			TLS:        tlsConfig,
-			Network:    p.Extra["type"],
+			Network:    networkType,
 			WSOpts:     wsOpts,
+			GRPCOpts:   grpcOpts,
 		}
 	case "trojan":
-		multiplex := &MultiplexConfig{Enabled: true} // smux for trojan
 		return TrojanProxy{
 			Type:       "trojan",
 			Tag:        p.ID,
@@ -74,23 +79,26 @@ func createClashProxy(p core.Profile) interface{} {
 			ServerPort: p.Port,
 			Password:   p.Auth["password"],
 			TLS:        tlsConfig,
-			Multiplex:  multiplex,
-			Network:    p.Extra["type"],
+			Multiplex:  &MultiplexConfig{Enabled: true}, // smux for trojan
+			Network:    networkType,
 			WSOpts:     wsOpts,
+			GRPCOpts:   grpcOpts,
 		}
 	case "ss":
 		var opts []string
-		if mux, ok := p.Extra["mux"]; ok && mux != "0" {
-			opts = append(opts, "mux")
-		}
-		if path, ok := p.Extra["path"]; ok {
-			opts = append(opts, "path="+path)
-		}
-		if host, ok := p.Extra["host"]; ok {
-			opts = append(opts, "host="+host)
-		}
-		if _, ok := p.Extra["tls"]; ok {
-			opts = append(opts, "tls=1")
+		if p.PluginOpts != nil {
+			if mux, ok := p.PluginOpts["mux"]; ok && mux != "0" {
+				opts = append(opts, "mux")
+			}
+			if path, ok := p.PluginOpts["path"]; ok {
+				opts = append(opts, "path="+path)
+			}
+			if host, ok := p.PluginOpts["host"]; ok {
+				opts = append(opts, "host="+host)
+			}
+			if _, ok := p.PluginOpts["tls"]; ok {
+				opts = append(opts, "tls=1")
+			}
 		}
 
 		return SSProxy{
@@ -100,17 +108,18 @@ func createClashProxy(p core.Profile) interface{} {
 			ServerPort: p.Port,
 			Method:     p.Auth["method"],
 			Password:   p.Auth["password"],
-			Plugin:     p.Extra["plugin"],
+			Plugin:     p.PluginOpts["name"],
 			PluginOpts: strings.Join(opts, ";"),
 		}
 	case "wg":
+		publicKey, _ := p.Extra["publicKey"].(string)
 		return WGProxy{
 			Type:          "wireguard",
 			Tag:           p.ID,
 			Server:        p.Server,
 			ServerPort:    p.Port,
 			PrivateKey:    p.Auth["private_key"],
-			PeerPublicKey: p.Extra["publicKey"],
+			PeerPublicKey: publicKey,
 			IP:            "172.19.0.2",
 		}
 	}

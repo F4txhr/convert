@@ -19,23 +19,32 @@ func (p TrojanParser) Parse(uri string) (core.Profile, error) {
 	}
 
 	port, _ := strconv.Atoi(u.Port())
-
-	extra := make(map[string]string)
 	query := u.Query()
-	for key := range query {
-		extra[key] = query.Get(key)
-	}
 
-	if u.Path != "" {
-		extra["path"] = u.Path
-	}
-
-	return core.Profile{
+	profile := core.Profile{
 		ID:     u.Fragment,
 		Proto:  "trojan",
 		Server: u.Hostname(),
 		Port:   port,
 		Auth:   map[string]string{"password": u.User.Username()},
-		Extra:  extra,
-	}, nil
+	}
+
+	// Trojan always implies TLS
+	profile.TLS = &core.TLSSettings{
+		Enabled:    true,
+		ServerName: query.Get("sni"),
+		Insecure:   query.Get("insecure") == "true",
+	}
+
+	// Populate structured Transport settings
+	if transportType := query.Get("type"); transportType != "" {
+		profile.Transport = &core.TransportSettings{
+			Type:        transportType,
+			Path:        query.Get("path"),
+			Host:        query.Get("host"),
+			ServiceName: query.Get("serviceName"),
+		}
+	}
+
+	return profile, nil
 }

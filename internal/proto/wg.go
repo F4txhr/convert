@@ -20,7 +20,7 @@ func (p WGParser) Parse(uri string) (core.Profile, error) {
 
 	port, _ := strconv.Atoi(u.Port())
 
-	extra := make(map[string]string)
+	extra := make(map[string]interface{})
 	query := u.Query()
 	for key := range query {
 		extra[key] = query.Get(key)

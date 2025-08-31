@@ -24,7 +24,6 @@ func NewRenderer() *Renderer {
 			"clash":   export.ClashExporter{},
 			"singbox": export.SingboxExporter{},
 			"v2ray":   export.V2rayExporter{},
-			"raw":     export.RawExporter{},
 		},
 		parsers: map[string]Parser{
 			"vmess":  proto.VmessParser{},

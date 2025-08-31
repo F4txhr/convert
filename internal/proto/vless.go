@@ -19,25 +19,34 @@ func (p VlessParser) Parse(uri string) (core.Profile, error) {
 	}
 
 	port, _ := strconv.Atoi(u.Port())
-
-	// Create the Extra map and populate it with all query parameters
-	extra := make(map[string]string)
 	query := u.Query()
-	for key := range query {
-		extra[key] = query.Get(key)
-	}
 
-	// Also add the path from the URL, if it exists
-	if u.Path != "" {
-		extra["path"] = u.Path
-	}
-
-	return core.Profile{
+	profile := core.Profile{
 		ID:     u.Fragment,
 		Proto:  "vless",
 		Server: u.Hostname(),
 		Port:   port,
 		Auth:   map[string]string{"uuid": u.User.Username()},
-		Extra:  extra,
-	}, nil
+	}
+
+	// Populate structured TLS settings
+	if security := query.Get("security"); security == "tls" || security == "reality" {
+		profile.TLS = &core.TLSSettings{
+			Enabled:    true,
+			ServerName: query.Get("sni"),
+			Insecure:   query.Get("insecure") == "true",
+		}
+	}
+
+	// Populate structured Transport settings
+	if transportType := query.Get("type"); transportType != "" {
+		profile.Transport = &core.TransportSettings{
+			Type:        transportType,
+			Path:        query.Get("path"),
+			Host:        query.Get("host"),
+			ServiceName: query.Get("serviceName"),
+		}
+	}
+
+	return profile, nil
 }

@@ -15,26 +15,23 @@ func (s SingboxExporter) Name() string { return "singbox" }
 
 // createSingboxProxy converts a core.Profile into a detailed Sing-box proxy struct.
 func createSingboxProxy(p core.Profile) interface{} {
-	// Common settings for VLESS, VMess, Trojan
+	// Translate the structured core.Profile to the output structs
 	var tlsConfig *TLSConfig
-	if security, ok := p.Extra["security"]; ok && (security == "tls" || security == "reality") {
+	if p.TLS != nil && p.TLS.Enabled {
 		tlsConfig = &TLSConfig{
-			Enabled:  true,
-			Insecure: true, // Per user example
-		}
-		if sni, ok := p.Extra["sni"]; ok && sni != "" {
-			tlsConfig.ServerName = sni
-		} else if host, ok := p.Extra["host"]; ok && host != "" {
-			tlsConfig.ServerName = host // Fallback to host for SNI
+			Enabled:    true,
+			Insecure:   true, // Per user example
+			ServerName: p.TLS.ServerName,
 		}
 	}
 
 	var transport *SingboxTransport
-	if transportType, ok := p.Extra["type"]; ok && transportType == "ws" {
+	if p.Transport != nil {
 		transport = &SingboxTransport{
-			Type:                "ws",
-			Path:                p.Extra["path"],
-			Headers:             WSHeaders{Host: p.Extra["host"]},
+			Type:                p.Transport.Type,
+			Path:                p.Transport.Path,
+			Headers:             WSHeaders{Host: p.Transport.Host},
+			ServiceName:         p.Transport.ServiceName,
 			EarlyDataHeaderName: "Sec-WebSocket-Protocol",
 		}
 	}
@@ -87,18 +84,21 @@ func createSingboxProxy(p core.Profile) interface{} {
 			Multiplex:      multiplex,
 		}
 	case "ss":
+		// Rebuild the plugin_opts string from the parsed map
 		var opts []string
-		if mux, ok := p.Extra["mux"]; ok && mux != "0" {
-			opts = append(opts, "mux")
-		}
-		if path, ok := p.Extra["path"]; ok {
-			opts = append(opts, "path="+path)
-		}
-		if host, ok := p.Extra["host"]; ok {
-			opts = append(opts, "host="+host)
-		}
-		if _, ok := p.Extra["tls"]; ok {
-			opts = append(opts, "tls=1")
+		if p.PluginOpts != nil {
+			if mux, ok := p.PluginOpts["mux"]; ok && mux != "0" {
+				opts = append(opts, "mux")
+			}
+			if path, ok := p.PluginOpts["path"]; ok {
+				opts = append(opts, "path="+path)
+			}
+			if host, ok := p.PluginOpts["host"]; ok {
+				opts = append(opts, "host="+host)
+			}
+			if _, ok := p.PluginOpts["tls"]; ok {
+				opts = append(opts, "tls=1")
+			}
 		}
 
 		return SSProxy{
@@ -108,17 +108,18 @@ func createSingboxProxy(p core.Profile) interface{} {
 			ServerPort: p.Port,
 			Method:     p.Auth["method"],
 			Password:   p.Auth["password"],
-			Plugin:     p.Extra["plugin"],
+			Plugin:     p.PluginOpts["name"],
 			PluginOpts: strings.Join(opts, ";"),
 		}
 	case "wg":
+		publicKey, _ := p.Extra["publicKey"].(string)
 		return WGProxy{
 			Type:          "wireguard",
 			Tag:           p.ID,
 			Server:        p.Server,
 			ServerPort:    p.Port,
 			PrivateKey:    p.Auth["private_key"],
-			PeerPublicKey: p.Extra["publicKey"],
+			PeerPublicKey: publicKey,
 			LocalAddress:  []string{"172.19.0.2/32"},
 		}
 	}

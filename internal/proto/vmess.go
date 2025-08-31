@@ -3,7 +3,6 @@ package proto
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 	"vpn-conv/internal/core"
@@ -22,13 +21,11 @@ func (p VmessParser) Parse(uri string) (core.Profile, error) {
 		return core.Profile{}, err
 	}
 
-	// Unmarshal into a flexible map to handle different value types
 	var vm map[string]interface{}
 	if err := json.Unmarshal(data, &vm); err != nil {
 		return core.Profile{}, err
 	}
 
-	// Helper to safely get string values from the map
 	getString := func(key string) string {
 		if val, ok := vm[key].(string); ok {
 			return val
@@ -36,7 +33,6 @@ func (p VmessParser) Parse(uri string) (core.Profile, error) {
 		return ""
 	}
 
-	// Port can be a string or a number in vmess links
 	var port int
 	switch p := vm["port"].(type) {
 	case string:
@@ -45,18 +41,33 @@ func (p VmessParser) Parse(uri string) (core.Profile, error) {
 		port = int(p)
 	}
 
-	// Populate Extra map with all string-representable values from the VMess JSON
-	extra := make(map[string]string)
-	for key, value := range vm {
-		extra[key] = fmt.Sprintf("%v", value)
-	}
-
-	return core.Profile{
+	profile := core.Profile{
 		ID:     getString("ps"),
 		Proto:  "vmess",
 		Server: getString("add"),
 		Port:   port,
 		Auth:   map[string]string{"uuid": getString("id")},
-		Extra:  extra,
-	}, nil
+	}
+
+	// Populate structured TLS settings from vm map
+	if tlsType := getString("tls"); tlsType == "tls" || tlsType == "reality" {
+		profile.TLS = &core.TLSSettings{
+			Enabled:    true,
+			ServerName: getString("sni"),
+			// In vmess links, "verify": false means insecure
+			Insecure:   getString("verify") == "false",
+		}
+	}
+
+	// Populate structured Transport settings from vm map
+	if netType := getString("net"); netType != "" {
+		profile.Transport = &core.TransportSettings{
+			Type:        netType,
+			Path:        getString("path"),
+			Host:        getString("host"),
+			ServiceName: getString("serviceName"),
+		}
+	}
+
+	return profile, nil
 }
