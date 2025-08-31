@@ -31,12 +31,16 @@ func parsePluginString(pluginStr string) map[string]string {
 	return opts
 }
 
+// fixB64Padding adds the required padding to a base64 string.
+func fixB64Padding(s string) string {
+	return s + strings.Repeat("=", (4-len(s)%4)%4)
+}
+
 func (p SSParser) Parse(uri string) (core.Profile, error) {
 	var decodedFragment string
 	if strings.Contains(uri, "#") {
 		parts := strings.SplitN(uri, "#", 2)
 		uri = parts[0]
-		// URL-decode the fragment to get the clean tag
 		decodedFragment, _ = url.PathUnescape(parts[1])
 	}
 
@@ -44,8 +48,10 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	if !strings.Contains(rawURL, "@") {
 		// This handles fully base64-encoded URIs
-		decoded, err := base64.RawStdEncoding.DecodeString(rawURL)
+		paddedURL := fixB64Padding(rawURL)
+		decoded, err := base64.URLEncoding.DecodeString(paddedURL)
 		if err != nil {
+			// Fallback for non-padded decoders if needed, but fixing padding is better
 			return core.Profile{}, err
 		}
 		recursiveURI := "ss://" + string(decoded)
@@ -66,9 +72,10 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		cleanUserInfo = userInfoPart // fallback to raw
 	}
 
-	// 2. Now, Base64-decode the clean string
+	// 2. Now, Base64-decode the clean string, with padding fix
 	var method, password string
-	decodedCreds, err := base64.RawStdEncoding.DecodeString(cleanUserInfo)
+	paddedUserInfo := fixB64Padding(cleanUserInfo)
+	decodedCreds, err := base64.URLEncoding.DecodeString(paddedUserInfo)
 	toParse := cleanUserInfo
 	if err == nil {
 		toParse = string(decodedCreds)
@@ -108,7 +115,6 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 				Host: pluginOpts["host"],
 			}
 		}
-
 		if _, ok := pluginOpts["tls"]; ok {
 			profile.TLS = &core.TLSSettings{
 				Enabled:    true,
