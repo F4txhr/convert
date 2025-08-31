@@ -14,7 +14,6 @@ func (p SSParser) Scheme() string {
 	return "ss"
 }
 
-// parsePluginString takes a SIP002 plugin string and returns a map of options.
 func parsePluginString(pluginStr string) map[string]string {
 	opts := make(map[string]string)
 	parts := strings.Split(pluginStr, ";")
@@ -25,7 +24,7 @@ func parsePluginString(pluginStr string) map[string]string {
 		kv := strings.SplitN(part, "=", 2)
 		if len(kv) == 2 {
 			opts[kv[0]] = kv[1]
-		} else if len(kv) == 1 { // handles boolean flags like 'tls'
+		} else if len(kv) == 1 {
 			opts[kv[0]] = "true"
 		}
 	}
@@ -33,37 +32,48 @@ func parsePluginString(pluginStr string) map[string]string {
 }
 
 func (p SSParser) Parse(uri string) (core.Profile, error) {
-	var fragment string
+	var decodedFragment string
 	if strings.Contains(uri, "#") {
 		parts := strings.SplitN(uri, "#", 2)
 		uri = parts[0]
-		fragment = parts[1]
+		// URL-decode the fragment to get the clean tag
+		decodedFragment, _ = url.PathUnescape(parts[1])
 	}
 
 	rawURL := strings.TrimPrefix(uri, "ss://")
 
 	if !strings.Contains(rawURL, "@") {
+		// This handles fully base64-encoded URIs
 		decoded, err := base64.RawStdEncoding.DecodeString(rawURL)
 		if err != nil {
 			return core.Profile{}, err
 		}
 		recursiveURI := "ss://" + string(decoded)
-		if fragment != "" {
-			recursiveURI += "#" + fragment
+		if decodedFragment != "" {
+			recursiveURI += "#" + decodedFragment
 		}
 		return p.Parse(recursiveURI)
 	}
 
+	// This handles plain or partially-encoded URIs
 	parts := strings.SplitN(rawURL, "@", 2)
-	userInfo := parts[0]
-	hostInfo := parts[1]
+	userInfoPart := parts[0]
+	hostInfoPart := parts[1]
 
+	// 1. URL-decode the user info part FIRST
+	cleanUserInfo, err := url.QueryUnescape(userInfoPart)
+	if err != nil {
+		cleanUserInfo = userInfoPart // fallback to raw
+	}
+
+	// 2. Now, Base64-decode the clean string
 	var method, password string
-	decodedCreds, err := base64.RawStdEncoding.DecodeString(userInfo)
-	toParse := userInfo
+	decodedCreds, err := base64.RawStdEncoding.DecodeString(cleanUserInfo)
+	toParse := cleanUserInfo
 	if err == nil {
 		toParse = string(decodedCreds)
 	}
+
 	credParts := strings.SplitN(toParse, ":", 2)
 	if len(credParts) > 0 {
 		method = credParts[0]
@@ -72,14 +82,15 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		password = credParts[1]
 	}
 
-	u, err := url.Parse("ss://dummy@" + hostInfo)
+	// 3. Parse the rest of the URL safely
+	u, err := url.Parse("ss://dummy@" + hostInfoPart)
 	if err != nil {
 		return core.Profile{}, err
 	}
 	port, _ := strconv.Atoi(u.Port())
 
 	profile := core.Profile{
-		ID:     fragment,
+		ID:     decodedFragment,
 		Proto:  "ss",
 		Server: u.Hostname(),
 		Port:   port,
@@ -90,10 +101,9 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		pluginOpts := parsePluginString(pluginStr)
 		profile.PluginOpts = pluginOpts
 
-		// Populate structured fields from plugin options
 		if name, ok := pluginOpts["name"]; ok && name == "v2ray-plugin" {
 			profile.Transport = &core.TransportSettings{
-				Type: "ws", // v2ray-plugin is typically for websockets
+				Type: "ws",
 				Path: pluginOpts["path"],
 				Host: pluginOpts["host"],
 			}
@@ -102,7 +112,7 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		if _, ok := pluginOpts["tls"]; ok {
 			profile.TLS = &core.TLSSettings{
 				Enabled:    true,
-				ServerName: pluginOpts["host"], // In SS plugins, host is often used as SNI
+				ServerName: pluginOpts["host"],
 			}
 		}
 	}
