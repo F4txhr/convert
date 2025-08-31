@@ -31,11 +31,6 @@ func parsePluginString(pluginStr string) map[string]string {
 	return opts
 }
 
-// fixB64Padding adds the required padding to a base64 string.
-func fixB64Padding(s string) string {
-	return s + strings.Repeat("=", (4-len(s)%4)%4)
-}
-
 func (p SSParser) Parse(uri string) (core.Profile, error) {
 	var decodedFragment string
 	if strings.Contains(uri, "#") {
@@ -47,11 +42,9 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 	rawURL := strings.TrimPrefix(uri, "ss://")
 
 	if !strings.Contains(rawURL, "@") {
-		// This handles fully base64-encoded URIs
-		paddedURL := fixB64Padding(rawURL)
-		decoded, err := base64.URLEncoding.DecodeString(paddedURL)
+		// Use RawURLEncoding to be lenient with padding
+		decoded, err := base64.RawURLEncoding.DecodeString(rawURL)
 		if err != nil {
-			// Fallback for non-padded decoders if needed, but fixing padding is better
 			return core.Profile{}, err
 		}
 		recursiveURI := "ss://" + string(decoded)
@@ -61,21 +54,18 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		return p.Parse(recursiveURI)
 	}
 
-	// This handles plain or partially-encoded URIs
 	parts := strings.SplitN(rawURL, "@", 2)
 	userInfoPart := parts[0]
 	hostInfoPart := parts[1]
 
-	// 1. URL-decode the user info part FIRST
 	cleanUserInfo, err := url.QueryUnescape(userInfoPart)
 	if err != nil {
 		cleanUserInfo = userInfoPart // fallback to raw
 	}
 
-	// 2. Now, Base64-decode the clean string, with padding fix
 	var method, password string
-	paddedUserInfo := fixB64Padding(cleanUserInfo)
-	decodedCreds, err := base64.URLEncoding.DecodeString(paddedUserInfo)
+	// Use RawURLEncoding, which correctly handles missing or improper padding.
+	decodedCreds, err := base64.RawURLEncoding.DecodeString(cleanUserInfo)
 	toParse := cleanUserInfo
 	if err == nil {
 		toParse = string(decodedCreds)
@@ -89,7 +79,6 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		password = credParts[1]
 	}
 
-	// 3. Parse the rest of the URL safely
 	u, err := url.Parse("ss://dummy@" + hostInfoPart)
 	if err != nil {
 		return core.Profile{}, err
