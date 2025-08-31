@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/base64"
+	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -33,6 +34,8 @@ func parsePluginString(pluginStr string) map[string]string {
 }
 
 func (p SSParser) Parse(uri string) (core.Profile, error) {
+	log.Printf("[SSParser DEBUG] Received URI: %s", uri)
+
 	var fragment string
 	if strings.Contains(uri, "#") {
 		parts := strings.SplitN(uri, "#", 2)
@@ -44,14 +47,17 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	// If no "@" symbol, it's a fully base64 encoded URI body.
 	if !strings.Contains(rawURL, "@") {
+		log.Printf("[SSParser DEBUG] No '@' found, assuming full base64 body.")
 		decoded, err := base64.StdEncoding.DecodeString(rawURL)
 		if err != nil {
+			log.Printf("[SSParser DEBUG] Failed to decode full body: %v", err)
 			return core.Profile{}, err
 		}
 		recursiveURI := "ss://" + string(decoded)
 		if fragment != "" {
 			recursiveURI += "#" + fragment
 		}
+		log.Printf("[SSParser DEBUG] Recursively parsing decoded URI: %s", recursiveURI)
 		return p.Parse(recursiveURI)
 	}
 
@@ -62,6 +68,7 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 	}
 	u, err := url.Parse(fullURI)
 	if err != nil {
+		log.Printf("[SSParser DEBUG] url.Parse failed: %v", err)
 		return core.Profile{}, err
 	}
 
@@ -69,21 +76,27 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	var method, password string
 	if u.User != nil {
-		// url.Parse is smart. If userinfo is `user:pass`, it splits them.
-		// If there's no colon, the whole thing is the Username.
 		pass, passSet := u.User.Password()
+		log.Printf("[SSParser DEBUG] url.Parse result: Username='%s', Password set: %v", u.User.Username(), passSet)
+
 		if passSet {
 			// Standard `method:password` format.
 			method = u.User.Username()
 			password = pass
+			log.Printf("[SSParser DEBUG] Plain user:pass found. Method: %s, Pass: %s", method, password)
 		} else {
 			// The whole userinfo is in the username field.
 			// This part could be plain text or base64.
 			userInfo := u.User.Username()
+			log.Printf("[SSParser DEBUG] No password found, userinfo is: '%s'. Attempting base64 decode.", userInfo)
+
+			decoded, err := base64.StdEncoding.DecodeString(userInfo)
 			toParse := userInfo
-			// Try to decode it. If successful, use the decoded string.
-			if decoded, err := base64.StdEncoding.DecodeString(userInfo); err == nil {
+			if err == nil {
 				toParse = string(decoded)
+				log.Printf("[SSParser DEBUG] Base64 decode SUCCESS. Decoded string: '%s'", toParse)
+			} else {
+				log.Printf("[SSParser DEBUG] Base64 decode FAILED. Assuming plain text. Error: %v", err)
 			}
 
 			parts := strings.SplitN(toParse, ":", 2)
@@ -94,7 +107,12 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 				password = parts[1]
 			}
 		}
+	} else {
+		log.Printf("[SSParser DEBUG] No user info found.")
 	}
+
+	log.Printf("[SSParser DEBUG] Final extracted credentials -> Method: '%s', Password: '%s'", method, password)
+
 
 	// Parse plugin options from query parameters.
 	extra := make(map[string]string)
