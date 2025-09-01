@@ -14,6 +14,7 @@ func (p SSParser) Scheme() string {
 	return "ss"
 }
 
+// parsePluginString is a helper to parse the SS plugin string.
 func parsePluginString(pluginStr string) map[string]string {
 	opts := make(map[string]string)
 	parts := strings.Split(pluginStr, ";")
@@ -31,6 +32,11 @@ func parsePluginString(pluginStr string) map[string]string {
 	return opts
 }
 
+// fixB64Padding adds the required padding to a base64 string.
+func fixB64Padding(s string) string {
+	return s + strings.Repeat("=", (4-len(s)%4)%4)
+}
+
 func (p SSParser) Parse(uri string) (core.Profile, error) {
 	var decodedFragment string
 	if strings.Contains(uri, "#") {
@@ -41,9 +47,10 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 
 	rawURL := strings.TrimPrefix(uri, "ss://")
 
+	// This handles fully base64-encoded URIs (no @ symbol).
 	if !strings.Contains(rawURL, "@") {
-		// Use RawURLEncoding to be lenient with padding
-		decoded, err := base64.RawURLEncoding.DecodeString(rawURL)
+		padded := fixB64Padding(rawURL)
+		decoded, err := base64.URLEncoding.DecodeString(padded)
 		if err != nil {
 			return core.Profile{}, err
 		}
@@ -54,18 +61,21 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		return p.Parse(recursiveURI)
 	}
 
+	// This handles plain or partially-encoded URIs.
 	parts := strings.SplitN(rawURL, "@", 2)
 	userInfoPart := parts[0]
 	hostInfoPart := parts[1]
 
+	// 1. URL-decode the user info part.
 	cleanUserInfo, err := url.QueryUnescape(userInfoPart)
 	if err != nil {
 		cleanUserInfo = userInfoPart // fallback to raw
 	}
 
+	// 2. Base64-decode the clean string, with padding fix.
 	var method, password string
-	// Use RawURLEncoding, which correctly handles missing or improper padding.
-	decodedCreds, err := base64.RawURLEncoding.DecodeString(cleanUserInfo)
+	paddedUserInfo := fixB64Padding(cleanUserInfo)
+	decodedCreds, err := base64.URLEncoding.DecodeString(paddedUserInfo)
 	toParse := cleanUserInfo
 	if err == nil {
 		toParse = string(decodedCreds)
@@ -79,6 +89,7 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		password = credParts[1]
 	}
 
+	// 3. Parse the rest of the URL safely.
 	u, err := url.Parse("ss://dummy@" + hostInfoPart)
 	if err != nil {
 		return core.Profile{}, err
@@ -93,7 +104,9 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 		Auth:   map[string]string{"method": method, "password": password},
 	}
 
-	if pluginStr := u.Query().Get("plugin"); pluginStr != "" {
+	// 4. Parse query parameters and populate structured fields.
+	query := u.Query()
+	if pluginStr := query.Get("plugin"); pluginStr != "" {
 		pluginOpts := parsePluginString(pluginStr)
 		profile.PluginOpts = pluginOpts
 
@@ -108,6 +121,20 @@ func (p SSParser) Parse(uri string) (core.Profile, error) {
 			profile.TLS = &core.TLSSettings{
 				Enabled:    true,
 				ServerName: pluginOpts["host"],
+			}
+		}
+	} else { // Handle non-plugin based transport params
+		if transportType := query.Get("type"); transportType != "" {
+			profile.Transport = &core.TransportSettings{
+				Type: transportType,
+				Path: query.Get("path"),
+				Host: query.Get("host"),
+			}
+		}
+		if security := query.Get("security"); security == "tls" {
+			profile.TLS = &core.TLSSettings{
+				Enabled:    true,
+				ServerName: query.Get("sni"),
 			}
 		}
 	}
