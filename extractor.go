@@ -14,7 +14,8 @@ func fixB64Padding(s string) string {
 }
 
 func main() {
-	uri := "ss://bm9uZTpkODNjOGVkYy03YjA0LTRjYmUtOGQ5Yy1kYjc5NDAzZmVkOWY=%3D@quiz.int.vidio.com:443?encryption=none&type=ws&host=gendar.ariyeldlacasa.workers.dev&path=%2F91.187.93.166-443&security=tls&sni=gendar.ariyeldlacasa.workers.dev#%F0%9F%87%A6%F0%9F%87%A9%20(AD)%20Andorra%20Telecom%0D"
+	// Use the user's second, more complex URI for a better test
+	uri := "ss://bm9uZTozYWJkYmJlMy0xNTliLTQ1ZWUtOGFkYi1mZjQwM2FjN2ExYjY%3D@plus-store.naver.com:80?encryption=none&type=ws&host=alya.yumicftigarun.web.id&security=none&sni=alya.yumicftigarun.web.id&path=%2F149.28.158.103-10030&plugin=v2ray-plugin%3Bmux%3D0#9%20%F0%9F%87%B8%F0%9F%87%AC%20Vultr%20Holdings%20LLC%20WS%20NTLS%20[alya]"
 
 	fmt.Println("--- STARTING SS EXTRACTOR ---")
 	fmt.Printf("Initial URI: %s\n\n", uri)
@@ -39,14 +40,12 @@ func main() {
 
 	// 3. Process UserInfo
 	var method, password string
-	// Step 3a: URL-decode the user info
 	cleanUserInfo, err := url.QueryUnescape(rawUserInfo)
 	if err != nil {
 		cleanUserInfo = rawUserInfo
 	}
 	fmt.Printf("URL-DECODED USERINFO: %s\n", cleanUserInfo)
 
-	// Step 3b: Manually fix padding and Base64-decode
 	paddedUserInfo := fixB64Padding(cleanUserInfo)
 	decodedCreds, err := base64.URLEncoding.DecodeString(paddedUserInfo)
 	if err == nil {
@@ -61,7 +60,6 @@ func main() {
 		}
 	} else {
 		fmt.Printf("BASE64-DECODING FAILED: %v\n", err)
-		// Fallback for plain text user info
 		credParts := strings.SplitN(cleanUserInfo, ":", 2)
 		if len(credParts) > 0 {
 			method = credParts[0]
@@ -74,7 +72,7 @@ func main() {
 	fmt.Printf("==> FINAL PASSWORD: %s\n\n", password)
 
 	// 4. Process HostInfo
-	u, _ := url.Parse("https://" + hostInfo) // Use https for safe parsing of query
+	u, _ := url.Parse("https://" + hostInfo)
 	fmt.Printf("HOST: %s\n", u.Hostname())
 	fmt.Printf("PORT: %s\n\n", u.Port())
 
@@ -86,5 +84,33 @@ func main() {
 			fmt.Printf("%s: %s\n", key, values[0])
 		}
 	}
+
+	// 6. Construct final plugin_opts string
+	var opts []string
+	// Check for mux inside the plugin param first
+	if pluginVal, ok := query["plugin"]; ok && strings.Contains(pluginVal[0], "mux=0") {
+		opts = append(opts, "mux=0")
+	}
+
+	// Check for type=ws to add mode=websocket
+	if typeVal, ok := query["type"]; ok && typeVal[0] == "ws" {
+		opts = append(opts, "mode=websocket")
+	}
+
+	if pathVal, ok := query["path"]; ok {
+		opts = append(opts, "path="+pathVal[0])
+	}
+	if hostVal, ok := query["host"]; ok {
+		opts = append(opts, "host="+hostVal[0])
+	}
+	// Check for security=tls to add the tls flag
+	if securityVal, ok := query["security"]; ok && securityVal[0] == "tls" {
+		opts = append(opts, "tls")
+	}
+
+	finalPluginOpts := strings.Join(opts, ";")
+	fmt.Printf("\n==> FINAL PLUGIN_OPTS: %s\n", finalPluginOpts)
+
+
 	fmt.Println("\n--- EXTRACTION COMPLETE ---")
 }
