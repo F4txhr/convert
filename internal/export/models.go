@@ -94,10 +94,10 @@ type SSProxy struct {
 	ServerPort int               `json:"server_port" yaml:"port"`
 	Method     string            `json:"method" yaml:"cipher"`
 	Password   string            `json:"password" yaml:"password"`
-	Plugin     string            `json:"-" yaml:"plugin,omitempty"`
-	PluginOpts string            `json:"-" yaml:"plugin-opts,omitempty"`
-	Transport  *SingboxTransport `json:"transport,omitempty" yaml:"-"`
-	TLS        *TLSConfig        `json:"tls,omitempty" yaml:"-"`
+	Plugin     string            `json:"plugin,omitempty" yaml:"plugin,omitempty"`
+	PluginOpts string            `json:"plugin_opts,omitempty" yaml:"plugin-opts,omitempty"`
+	Transport  *SingboxTransport `json:"-" yaml:"-"`
+	TLS        *TLSConfig        `json:"-" yaml:"-"`
 }
 
 type WGProxy struct {
