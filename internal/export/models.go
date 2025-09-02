@@ -88,14 +88,16 @@ type TrojanProxy struct {
 }
 
 type SSProxy struct {
-	Type       string `json:"type" yaml:"type"`
-	Tag        string `json:"tag" yaml:"name"`
-	Server     string `json:"server" yaml:"server"`
-	ServerPort int    `json:"server_port" yaml:"port"`
-	Method     string `json:"method" yaml:"cipher"`
-	Password   string `json:"password" yaml:"password"`
-	Plugin     string `json:"plugin,omitempty" yaml:"plugin,omitempty"`
-	PluginOpts string `json:"plugin_opts,omitempty" yaml:"plugin-opts,omitempty"`
+	Type       string            `json:"type" yaml:"type"`
+	Tag        string            `json:"tag" yaml:"name"`
+	Server     string            `json:"server" yaml:"server"`
+	ServerPort int               `json:"server_port" yaml:"port"`
+	Method     string            `json:"method" yaml:"cipher"`
+	Password   string            `json:"password" yaml:"password"`
+	Plugin     string            `json:"-" yaml:"plugin,omitempty"`
+	PluginOpts string            `json:"-" yaml:"plugin-opts,omitempty"`
+	Transport  *SingboxTransport `json:"transport,omitempty" yaml:"-"`
+	TLS        *TLSConfig        `json:"tls,omitempty" yaml:"-"`
 }
 
 type WGProxy struct {

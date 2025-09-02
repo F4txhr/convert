@@ -84,20 +84,20 @@ func createSingboxProxy(p core.Profile) interface{} {
 			Multiplex:      multiplex,
 		}
 	case "ss":
-		// Rebuild the plugin_opts string from the parsed map
-		var opts []string
-		if p.PluginOpts != nil {
-			if mux, ok := p.PluginOpts["mux"]; ok && mux != "0" {
-				opts = append(opts, "mux")
+		var ssTransport *SingboxTransport
+		if p.Transport != nil {
+			ssTransport = &SingboxTransport{
+				Type:    p.Transport.Type,
+				Path:    p.Transport.Path,
+				Headers: WSHeaders{Host: p.Transport.Host},
 			}
-			if path, ok := p.PluginOpts["path"]; ok {
-				opts = append(opts, "path="+path)
-			}
-			if host, ok := p.PluginOpts["host"]; ok {
-				opts = append(opts, "host="+host)
-			}
-			if _, ok := p.PluginOpts["tls"]; ok {
-				opts = append(opts, "tls=1")
+		}
+
+		var ssTls *TLSConfig
+		if p.TLS != nil && p.TLS.Enabled {
+			ssTls = &TLSConfig{
+				Enabled:    true,
+				ServerName: p.TLS.ServerName,
 			}
 		}
 
@@ -108,8 +108,8 @@ func createSingboxProxy(p core.Profile) interface{} {
 			ServerPort: p.Port,
 			Method:     p.Auth["method"],
 			Password:   p.Auth["password"],
-			Plugin:     p.PluginOpts["name"],
-			PluginOpts: strings.Join(opts, ";"),
+			Transport:  ssTransport,
+			TLS:        ssTls,
 		}
 	case "wg":
 		publicKey, _ := p.Extra["publicKey"].(string)
